@@ -1,0 +1,16 @@
+﻿参数名,数值
+train_max_wind,20.5347099304199
+max_theo_train,3600.0
+WIND_BIN_WIDTH,0.05
+ERROR_THRESHOLD,100
+POWER_COL,LV ActivePower (kW)
+mean_wind_lag1,7.734297403783027
+mean_wind_lag2,7.734005995012117
+mean_wind_lag3,7.733710499716821
+mean_eff_lag1,0.34090662490431395
+mean_eff_lag2,0.3412705102092083
+mean_eff_lag3,0.3416237864066138
+mean_power_lag1,1424.4473528441574
+mean_power_lag2,1424.3785180688637
+mean_power_lag3,1424.3080610668728
+mean_theo_power,1561.0670662255684

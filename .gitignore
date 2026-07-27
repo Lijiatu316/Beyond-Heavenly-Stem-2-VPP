@@ -1,0 +1,22 @@
+# MATLAB
+*.m~
+*.asv
+*.mat
+
+# Python
+__pycache__/
+*.pyc
+
+# 模型二进制 (太大)
+*.bin
+*.pkl
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+~$*

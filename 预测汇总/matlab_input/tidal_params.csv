@@ -1,0 +1,12 @@
+﻿参数名,数值
+参数名称,数值
+station_name,江厦潮汐电站
+rho,1025.0
+g,9.81
+S,5300000.0
+eta,0.78
+loss_factor,0.95
+unit_number,5.0
+unit_power,640.0
+H_min,1.0
+Q_max,120.0

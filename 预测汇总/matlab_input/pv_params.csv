@@ -1,0 +1,12 @@
+﻿参数名,数值,说明
+G_std,1000.0,
+Pn,1000.0,
+T_cell_std,25.0,
+alpha_temp,0.0038,
+eta_system,0.8,
+k_board_temp,0.016,
+k_wind_cool,0.1,
+low_light_base,0.6,
+low_light_divisor,500.0,
+low_light_threshold,200.0,
+max_power_ratio,1.1,

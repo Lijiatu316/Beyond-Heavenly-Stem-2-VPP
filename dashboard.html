@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VPP 孤岛自治监控平台</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        vpp: { bg:'#0a0e17', card:'#111827', border:'#1e293b', accent:'#3b82f6',
+               green:'#10b981', red:'#ef4444', yellow:'#f59e0b', purple:'#8b5cf6',
+               cyan:'#06b6d4', orange:'#f97316' }
+      },
+      fontFamily: { mono: ['JetBrains Mono','Consolas', 'monospace'] }
+    }
+  }
+}
+</script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+* { font-family: 'Inter', sans-serif; }
+body { background: #0a0e17; color: #e2e8f0; }
+/* Bentogrid */
+.bento { display: grid; grid-template-columns: repeat(6,1fr); gap: 1rem; padding: 1rem; }
+.bento > * { background: #111827; border: 1px solid #1e293b; border-radius: 0.75rem; padding: 1.25rem; }
+.bento .col-2 { grid-column: span 2; }
+.bento .col-3 { grid-column: span 3; }
+.bento .col-4 { grid-column: span 4; }
+.bento .col-6 { grid-column: span 6; }
+/* Animations - React Bits inspired */
+@keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+@keyframes pulse-glow { 0%,100% { box-shadow: 0 0 8px rgba(59,130,246,0.3); } 50% { box-shadow: 0 0 20px rgba(59,130,246,0.6); } }
+@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+@keyframes scan-line { 0% { top:0; } 100% { top:100%; } }
+.animate-fade { animation: fadeUp 0.6s ease-out both; }
+.animate-glow { animation: pulse-glow 3s ease-in-out infinite; }
+.shimmer-text { background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 25%, #06b6d4 50%, #8b5cf6 75%, #3b82f6 100%); background-size: 200% 100%; -webkit-background-clip: text; -webkit-text-fill-color: transparent; animation: shimmer 3s linear infinite; }
+/* KPI cards */
+.kpi-card { position:relative; overflow:hidden; transition:all 0.3s ease; }
+.kpi-card:hover { transform: translateY(-2px); border-color: #3b82f6; box-shadow: 0 4px 24px rgba(59,130,246,0.15); }
+.kpi-card::after { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,rgba(59,130,246,0.5),transparent); }
+.kpi-value { font-size: 2rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
+.kpi-label { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 0.25rem; }
+/* Mode indicator */
+.mode-badge { display:inline-flex; align-items:center; gap:0.5rem; padding:0.375rem 1rem; border-radius:9999px; font-weight:600; font-size:0.875rem; }
+.mode-badge.island { background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.3); }
+.mode-badge .dot { width:8px; height:8px; border-radius:50%; background:#ef4444; animation: pulse-glow 2s ease-in-out infinite; }
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background:#0a0e17; } ::-webkit-scrollbar-thumb { background:#334155; border-radius:2px; }
+/* Chart canvas */
+canvas { max-height: 280px; }
+.alarm-row { border-left: 3px solid; padding:0.375rem 0.75rem; margin:0.25rem 0; font-size:0.75rem; font-family:'JetBrains Mono',monospace; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="border-b border-vpp-border px-6 py-3 flex items-center justify-between" style="background:rgba(17,24,39,0.8); backdrop-filter:blur(12px);">
+  <div class="flex items-center gap-3">
+    <div class="text-xl font-bold shimmer-text">⚡ VPP 孤岛自治监控平台</div>
+    <span class="mode-badge island" id="modeBadge"><span class="dot"></span>ISLAND MODE</span>
+  </div>
+  <div class="flex items-center gap-4 text-xs text-slate-400">
+    <span id="simTime">⏱ 仿真: --</span>
+    <span id="dataSource">📂 数据: --</span>
+    <button onclick="toggleTheme()" class="px-3 py-1 rounded border border-vpp-border hover:border-vpp-accent transition-colors">🌓 主题</button>
+  </div>
+</header>
+
+<!-- Bento Grid Dashboard -->
+<main class="bento max-w-[1600px] mx-auto">
+
+  <!-- KPI Row -->
+  <div class="col-2 kpi-card animate-fade" style="animation-delay:0.05s">
+    <div class="kpi-label">新能源消纳率</div>
+    <div class="kpi-value text-vpp-green" id="kpiRenewable">--</div>
+    <div class="text-xs text-slate-500 mt-1">含光伏+风电+潮汐</div>
+  </div>
+  <div class="col-2 kpi-card animate-fade" style="animation-delay:0.1s">
+    <div class="kpi-label">频率合格率</div>
+    <div class="kpi-value text-vpp-accent" id="kpiFreq">--</div>
+    <div class="text-xs text-slate-500 mt-1">49.5~50.5 Hz 时间占比</div>
+  </div>
+  <div class="col-2 kpi-card animate-fade" style="animation-delay:0.15s">
+    <div class="kpi-label">供电可靠性</div>
+    <div class="kpi-value text-vpp-cyan" id="kpiReliability">--</div>
+    <div class="text-xs text-slate-500 mt-1">1 - 切负荷/总需电量</div>
+  </div>
+  <div class="col-2 kpi-card animate-fade" style="animation-delay:0.2s">
+    <div class="kpi-label">调度总成本</div>
+    <div class="kpi-value text-vpp-yellow" id="kpiCost">--</div>
+    <div class="text-xs text-slate-500 mt-1">燃料+切负荷+弃可再生</div>
+  </div>
+  <div class="col-2 kpi-card animate-fade" style="animation-delay:0.25s">
+    <div class="kpi-label">CO₂ 排放</div>
+    <div class="kpi-value text-slate-300" id="kpiCO2">--</div>
+    <div class="text-xs text-slate-500 mt-1">燃气轮机 0.5 kg/kWh</div>
+  </div>
+  <div class="col-2 kpi-card animate-fade" style="animation-delay:0.3s">
+    <div class="kpi-label">系统告警</div>
+    <div class="kpi-value text-vpp-red" id="kpiAlarms">--</div>
+    <div class="text-xs text-slate-500 mt-1">低频/过频/SOC/电压</div>
+  </div>
+
+  <!-- Row 2: Frequency Chart (spans 4) + Cost Donut (spans 2) -->
+  <div class="col-4 animate-fade" style="animation-delay:0.35s">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-sm font-semibold text-slate-300">📈 系统频率 (24h)</h3>
+      <span class="text-xs text-slate-500">Hz</span>
+    </div>
+    <canvas id="chartFreq"></canvas>
+  </div>
+  <div class="col-2 animate-fade" style="animation-delay:0.4s">
+    <h3 class="text-sm font-semibold text-slate-300 mb-3">🍩 成本构成</h3>
+    <canvas id="chartCost"></canvas>
+  </div>
+
+  <!-- Row 3: Power Stack (spans 3) + SOC (spans 3) -->
+  <div class="col-3 animate-fade" style="animation-delay:0.45s">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-sm font-semibold text-slate-300">⚡ 各VPP出力堆叠</h3>
+      <div class="flex gap-3 text-xs">
+        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-yellow-400 inline-block"></span>光伏</span>
+        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-cyan-400 inline-block"></span>风电</span>
+        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-500 inline-block"></span>潮汐</span>
+        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-red-400 inline-block"></span>燃气</span>
+        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-400 inline-block"></span>储能</span>
+      </div>
+    </div>
+    <canvas id="chartPower"></canvas>
+  </div>
+  <div class="col-3 animate-fade" style="animation-delay:0.5s">
+    <h3 class="text-sm font-semibold text-slate-300 mb-3">🔋 储能SOC轨迹</h3>
+    <canvas id="chartSOC"></canvas>
+  </div>
+
+  <!-- Row 4: VPP Bar Comparison (spans 3) + Alarm Log (spans 3) -->
+  <div class="col-3 animate-fade" style="animation-delay:0.55s">
+    <h3 class="text-sm font-semibold text-slate-300 mb-3">📊 逐VPP指标对比</h3>
+    <canvas id="chartVPP"></canvas>
+  </div>
+  <div class="col-3 animate-fade" style="animation-delay:0.6s">
+    <h3 class="text-sm font-semibold text-slate-300 mb-3">🚨 告警日志</h3>
+    <div class="overflow-y-auto max-h-[240px] text-xs font-mono" id="alarmLog">
+      <div class="text-slate-500">加载中...</div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ========== Theme Toggle ==========
+function toggleTheme() {
+  document.documentElement.classList.toggle('dark');
+}
+
+// ========== Load CSV Data ==========
+async function loadCSV(filename) {
+  const resp = await fetch(filename);
+  const text = await resp.text();
+  // Remove BOM if present
+  const clean = text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text;
+  const result = Papa.parse(clean, { header: true, dynamicTyping: true, skipEmptyLines: true });
+  return { data: result.data, fields: result.meta.fields };
+}
+
+// ========== Main ==========
+async function init() {
+  try {
+    // --- Load timeseries ---
+    const tsRes = await loadCSV('island_timeseries.csv');
+    const tsData = tsRes.data.filter(r => r['Time_h'] != null);
+    if (tsData.length === 0) throw new Error('时序数据为空');
+    const F = tsRes.fields; // column names array for reference
+    console.log('CSV columns:', F);
+    console.log('Data rows:', tsData.length);
+
+    // --- Robust column getter (tries multiple name patterns) ---
+    function col(name) {
+      // Try exact match first
+      if (F.includes(name)) return name;
+      // Try with BOM prefix
+      const bomName = '﻿' + name;
+      if (F.includes(bomName)) return bomName;
+      // Try find partial match
+      const found = F.find(f => f && f.replace('﻿','').includes(name));
+      return found || name;
+    }
+
+    const TIME = col('Time_h');
+    const cols = {
+      pv:   [col('VPP1_PV_kW'), col('VPP2_PV_kW'), col('VPP3_PV_kW')],
+      wind: [col('VPP1_Wind_kW'), col('VPP2_Wind_kW'), col('VPP3_Wind_kW')],
+      gas:  [col('VPP1_Gas_kW'), col('VPP2_Gas_kW'), col('VPP3_Gas_kW')],
+      bat:  [col('VPP1_Bat_kW'), col('VPP2_Bat_kW'), col('VPP3_Bat_kW')],
+      load: [col('VPP1_Load_kW'), col('VPP2_Load_kW'), col('VPP3_Load_kW')],
+      shed: [col('VPP1_Shed_kW'), col('VPP2_Shed_kW'), col('VPP3_Shed_kW')],
+      curt: [col('VPP1_Curtail_kW'), col('VPP2_Curtail_kW'), col('VPP3_Curtail_kW')],
+      soc:  [col('VPP1_SOC'), col('VPP2_SOC'), col('VPP3_SOC')],
+      freq: [col('VPP1_Freq_Hz'), col('VPP2_Freq_Hz'), col('VPP3_Freq_Hz')],
+    };
+
+    // --- Compute KPIs from timeseries ---
+    const N = tsData.length;
+    let totalPV=0, totalWind=0, totalGas=0, totalLoad=0, totalShed=0, totalCurt=0, totalBatDis=0, totalBatCh=0;
+    let freqOkSteps = 0;
+    let alarmItems = [];
+
+    tsData.forEach((r, i) => {
+      for (let v=0; v<3; v++) {
+        totalPV   += (r[cols.pv[v]]   || 0);
+        totalWind += (r[cols.wind[v]] || 0);
+        totalGas  += (r[cols.gas[v]]  || 0);
+        totalLoad += (r[cols.load[v]] || 0);
+        totalShed += (r[cols.shed[v]] || 0);
+        totalCurt += (r[cols.curt[v]] || 0);
+        const bat = (r[cols.bat[v]] || 0);
+        if (bat > 0) totalBatDis += bat;
+        else totalBatCh += Math.abs(bat);
+        // Frequency check
+        const f = r[cols.freq[v]];
+        if (f != null && f >= 49.5 && f <= 50.5) freqOkSteps++;
+        // Alarm detection
+        if (f != null && f < 49.5) alarmItems.push({t:r[TIME], vpp:v+1, type:'低频', val:f.toFixed(2)+'Hz', cls:'text-red-400 border-red-500'});
+        if (f != null && f > 50.5) alarmItems.push({t:r[TIME], vpp:v+1, type:'过频', val:f.toFixed(2)+'Hz', cls:'text-orange-400 border-orange-500'});
+        const soc = r[cols.soc[v]];
+        if (soc != null && soc < 0.12) alarmItems.push({t:r[TIME], vpp:v+1, type:'SOC低', val:(soc*100).toFixed(1)+'%', cls:'text-yellow-400 border-yellow-500'});
+        const shed = r[cols.shed[v]];
+        if (shed != null && shed > 1) alarmItems.push({t:r[TIME], vpp:v+1, type:'切负荷', val:shed.toFixed(0)+'kW', cls:'text-red-400 border-red-500'});
+      }
+    });
+
+    const dt_h = 0.1;
+    const totalRenewable = totalPV + totalWind; // kWh equivalent (sum of kW * will be multiplied by dt)
+    const renewableRate = totalRenewable > 0 ? Math.max(0, (1 - totalCurt / Math.max(totalRenewable, 1))) * 100 : 0;
+    const freqRate = (freqOkSteps / (N * 3) * 100);
+    const reliability = totalLoad > 0 ? (1 - totalShed / totalLoad) * 100 : 100;
+    const fuelCost = totalGas * 0.35 * dt_h;
+    const shedCost  = totalShed * 5 * dt_h;
+    const curtCost  = totalCurt * 0.1 * dt_h;
+    const totalCost = fuelCost + shedCost + curtCost;
+    const co2 = totalGas * dt_h * 0.5;
+    const alarmCount = alarmItems.length;
+
+    // --- Update KPIs ---
+    document.getElementById('kpiRenewable').textContent = renewableRate.toFixed(1) + '%';
+    document.getElementById('kpiFreq').textContent = freqRate.toFixed(1) + '%';
+    document.getElementById('kpiReliability').textContent = reliability.toFixed(1) + '%';
+    document.getElementById('kpiCost').textContent = '¥' + totalCost.toLocaleString('zh-CN', {maximumFractionDigits:0});
+    document.getElementById('kpiCO2').textContent = co2.toFixed(0) + ' kg';
+    document.getElementById('kpiAlarms').textContent = alarmCount;
+    document.getElementById('simTime').textContent = '⏱ 仿真: 24h × ' + N + '步 (dt=0.1h)';
+    document.getElementById('dataSource').textContent = '📂 数据: island_timeseries.csv (' + N + '行)';
+
+    // --- Time labels ---
+    const timeLabels = tsData.map(r => (r[TIME] != null ? (r[TIME]*1).toFixed(1) : ''));
+    const timeStep = Math.max(1, Math.floor(N / 24)); // ~10 steps per label
+
+    // --- Chart 1: System Frequency ---
+    const freqAvg = tsData.map(r => {
+      const f1 = r[cols.freq[0]] || 50, f2 = r[cols.freq[1]] || 50, f3 = r[cols.freq[2]] || 50;
+      return (f1 + f2 + f3) / 3;
+    });
+
+    new Chart(document.getElementById('chartFreq'), {
+      type: 'line',
+      data: {
+        labels: timeLabels,
+        datasets: [{
+          data: freqAvg,
+          borderColor: '#3b82f6', borderWidth: 1.5, pointRadius: 0, tension: 0.2,
+          fill: false
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.raw.toFixed(3) + ' Hz' } } },
+        scales: {
+          x: { ticks: { maxTicksLimit: 12, callback:(v,i)=>timeLabels[i*timeStep]||'' } },
+          y: { min: 49.0, max: 51.0, ticks: { callback: v => v.toFixed(1)+' Hz' } }
+        }
+      },
+      plugins: [{
+        id: 'band',
+        beforeDraw(chart) {
+          const { ctx, chartArea:{left,right}, scales:{y} } = chart;
+          ctx.save();
+          ctx.fillStyle = 'rgba(16,185,129,0.05)';
+          ctx.fillRect(left, y.getPixelForValue(50.5), right-left, y.getPixelForValue(49.5)-y.getPixelForValue(50.5));
+          [50.5, 49.5].forEach(v => {
+            ctx.strokeStyle = 'rgba(239,68,68,0.3)'; ctx.setLineDash([4,4]);
+            const yp = y.getPixelForValue(v);
+            ctx.beginPath(); ctx.moveTo(left,yp); ctx.lineTo(right,yp); ctx.stroke();
+          });
+          ctx.strokeStyle = 'rgba(148,163,184,0.2)'; ctx.setLineDash([2,6]);
+          const ym = y.getPixelForValue(50);
+          ctx.beginPath(); ctx.moveTo(left,ym); ctx.lineTo(right,ym); ctx.stroke();
+          ctx.setLineDash([]); ctx.restore();
+        }
+      }]
+    });
+
+    // --- Chart 2: Cost Donut ---
+    new Chart(document.getElementById('chartCost'), {
+      type: 'doughnut',
+      data: {
+        labels: ['燃料成本','切负荷惩罚','弃可再生'],
+        datasets: [{
+          data: [fuelCost, shedCost, curtCost],
+          backgroundColor: ['#f97316','#ef4444','#f59e0b'],
+          borderColor: '#111827', borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { boxWidth:10, padding:10, font:{size:10}, color:'#94a3b8' } } }
+      }
+    });
+
+    // --- Chart 3: Power Stack (subsampled for visibility) ---
+    const skip = Math.max(1, Math.floor(N / 48)); // ~48 bars
+    const pvSum=[], windSum=[], gasSum=[], batSum=[], loadSum=[], tl=[];
+    for (let i=0; i<N; i+=skip) {
+      let p=0,w=0,g=0,b=0,l=0;
+      for (let v=0; v<3; v++) {
+        p += (tsData[i][cols.pv[v]] || 0); w += (tsData[i][cols.wind[v]] || 0);
+        g += (tsData[i][cols.gas[v]] || 0); b += Math.max(0, tsData[i][cols.bat[v]] || 0);
+        l += (tsData[i][cols.load[v]] || 0);
+      }
+      pvSum.push(p); windSum.push(w); gasSum.push(g); batSum.push(b); loadSum.push(l);
+      tl.push(timeLabels[i]);
+    }
+
+    new Chart(document.getElementById('chartPower'), {
+      type: 'bar',
+      data: {
+        labels: tl,
+        datasets: [
+          { label:'光伏', data:pvSum, backgroundColor:'#eab308', borderRadius:1 },
+          { label:'风电', data:windSum, backgroundColor:'#06b6d4', borderRadius:1 },
+          { label:'燃气', data:gasSum, backgroundColor:'#f87171', borderRadius:1 },
+          { label:'储能(放)', data:batSum, backgroundColor:'#10b981', borderRadius:1 },
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { x: { stacked: true, ticks: { maxTicksLimit: 12 } }, y: { stacked: true, title: { display: true, text: 'kW' } } }
+      }
+    });
+
+    // --- Chart 4: SOC ---
+    const socDatasets = [0,1,2].map((v,i) => ({
+      label: 'VPP'+(v+1),
+      data: tsData.map(r => (r[cols.soc[v]] || 0.5) * 100),
+      borderColor: ['#3b82f6','#10b981','#f59e0b'][i],
+      borderWidth: 1.5, pointRadius: 0, tension: 0.3
+    }));
+    new Chart(document.getElementById('chartSOC'), {
+      type: 'line', data: { labels: timeLabels, datasets: socDatasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position:'bottom', labels:{boxWidth:10, padding:10, font:{size:10}, color:'#94a3b8'} } },
+        scales: { x: { ticks:{maxTicksLimit:12} }, y: { min:0, max:100, ticks:{callback:v=>v+'%'} } }
+      }
+    });
+
+    // --- Chart 5: Per-VPP KPIs ---
+    const vppKpi = [0,1,2].map(v => {
+      let pv=0, w=0, g=0, l=0, s=0, c=0, fOk=0;
+      tsData.forEach(r => {
+        pv += (r[cols.pv[v]]||0); w += (r[cols.wind[v]]||0); g += (r[cols.gas[v]]||0);
+        l += (r[cols.load[v]]||0); s += (r[cols.shed[v]]||0); c += (r[cols.curt[v]]||0);
+        const f = r[cols.freq[v]]; if (f!=null && f>=49.5 && f<=50.5) fOk++;
+      });
+      const renAvail = pv + w;
+      return {
+        renRate: renAvail>0 ? (1-c/Math.max(renAvail,1))*100 : 0,
+        freqRate: fOk/N*100,
+        rel: l>0 ? (1-s/l)*100 : 100,
+        cost: g*0.35*dt_h + s*5*dt_h + c*0.1*dt_h
+      };
+    });
+
+    new Chart(document.getElementById('chartVPP'), {
+      type: 'bar',
+      data: {
+        labels: ['消纳率%','频率合格%','可靠性%','成本(k¥)'],
+        datasets: [
+          { label:'VPP1', data:[vppKpi[0].renRate, vppKpi[0].freqRate, vppKpi[0].rel, vppKpi[0].cost/1000], backgroundColor:'#3b82f6', borderRadius:3 },
+          { label:'VPP2', data:[vppKpi[1].renRate, vppKpi[1].freqRate, vppKpi[1].rel, vppKpi[1].cost/1000], backgroundColor:'#10b981', borderRadius:3 },
+          { label:'VPP3', data:[vppKpi[2].renRate, vppKpi[2].freqRate, vppKpi[2].rel, vppKpi[2].cost/1000], backgroundColor:'#f59e0b', borderRadius:3 },
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position:'bottom', labels:{boxWidth:10, padding:10, font:{size:10}, color:'#94a3b8'} } },
+        scales: { y: { beginAtZero: true } }
+      }
+    });
+
+    // --- Alarm Log ---
+    const alarmHtml = alarmItems.slice(0, 60).map(a =>
+      `<div class="alarm-row ${a.cls}">[${parseFloat(a.t).toFixed(1)}h] VPP${a.vpp} | ${a.type}: ${a.val}</div>`
+    ).join('') || '<div class="text-green-400 text-xs">✅ 无告警</div>';
+    document.getElementById('alarmLog').innerHTML = alarmHtml;
+
+    console.log('✅ VPP 监控平台加载完成 — 消纳率='+renewableRate.toFixed(1)+'% 频率合格='+freqRate.toFixed(1)+'% 可靠性='+reliability.toFixed(1)+'%');
+
+  } catch(err) {
+    console.error(err);
+    document.querySelector('main').innerHTML = '<div style="color:#ef4444;padding:3rem;text-align:center;grid-column:span 6"><h2 style="font-size:1.5rem;margin-bottom:1rem">⚠️ 数据加载失败</h2><p style="color:#94a3b8">请先在MATLAB中运行 <code style="background:#1e293b;padding:2px 8px;border-radius:4px">run_mode_island()</code> 生成CSV文件</p><p style="color:#64748b;margin-top:0.5rem;font-size:0.875rem">然后确保从 <code>http://localhost:8080/dashboard.html</code> 访问（非 file:// 协议）</p><p style="color:#475569;margin-top:1rem;font-size:0.75rem">错误: ' + err.message + '</p></div>';
+  }
+}
+
+init();
+</script>
+</body>
+</html>
