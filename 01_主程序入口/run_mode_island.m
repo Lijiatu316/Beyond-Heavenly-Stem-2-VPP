@@ -64,8 +64,8 @@ function results = run_mode_island()
     % 潮汐状态
     tidal_state = [];  % 库区水位
 
-    % 频率偏差历史（用于历史输入）
-    freq_dev_history = cfg.data.freq_deviation;
+    % 频率——由PI控制器内生计算，不再从外部CSV读
+    % 初始频率 = 标称值，后续由freq_volt_pi_control动态计算
 
     % 通信故障（全程激活）
     fault_active = comm_fault_trigger(0, [], cfg.Comm.topology, true);
@@ -131,10 +131,8 @@ function results = run_mode_island()
         dispatch = vpp_island_ems(state, forecast, constraints, cfg);
 
         % ---- 2.7 PI调频修正 ----
-        % 计算当前频率偏差
-        state.freq_dev = freq_dev_history(t, :);
-        state.freq = cfg.f_nom + state.freq_dev;
-
+        % 频率动态内生计算：从真实功率缺口通过下垂+惯性模型算出
+        % 不再使用外部CSV的虚假频率数据
         [dispatch, freq_new, volt_new, pi_state] = freq_volt_pi_control(...
             dispatch, state, dt, cfg, pi_state);
 

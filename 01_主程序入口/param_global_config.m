@@ -64,9 +64,9 @@ function cfg = param_global_config()
     cfg.Tidal.Q_max        = 120;               % 最大流量 (m³/s)
 
     % ==================== 燃气轮机参数 ====================
-    cfg.Gas.P_min         = [0, 0, 0];          % 最小出力 (kW)
-    cfg.Gas.P_max         = [200, 150, 250];    % 最大出力 (kW)
-    cfg.Gas.ramp_rate     = [100, 80, 120];     % 爬坡率 (kW/h)
+    cfg.Gas.P_min         = [50, 40, 60];        % 最小出力 (kW) - 避免频繁启停
+    cfg.Gas.P_max         = [800, 600, 900];     % 最大出力 (kW) - 匹配实际负荷峰值
+    cfg.Gas.ramp_rate     = [400, 300, 500];     % 爬坡率 (kW/h) - 匹配更大容量
     cfg.Gas.fuel_cost_a   = [0.35, 0.38, 0.33]; % 燃料成本斜率 (元/kWh)
     cfg.Gas.fuel_cost_b   = [0.05, 0.05, 0.05]; % 燃料成本截距 (元/h)
 

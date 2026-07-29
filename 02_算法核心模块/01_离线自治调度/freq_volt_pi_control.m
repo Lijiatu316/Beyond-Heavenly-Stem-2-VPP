@@ -48,7 +48,7 @@ function [dispatch_corrected, freq_new, volt_new, pi_state] = freq_volt_pi_contr
         cfg.PI.Ki = 100;         % 积分增益 (kW/Hz·h)
         cfg.PI.droop_R = 0.02;   % 下垂系数 (2% — 微网逆变器典型值)
         cfg.PI.P_base = 1500;    % 基准功率 (kVA) — 匹配更大负荷
-        cfg.PI.alpha_f = 0.80;   % 强平滑: 80%历史+20%当前 → 抑制跳变
+        cfg.PI.alpha_f = 0.50;   % 中等平滑: 50%历史+50%当前 → 更快响应功率变化
     end
 
     Kp = cfg.PI.Kp;
@@ -136,8 +136,9 @@ function [dispatch_corrected, freq_new, volt_new, pi_state] = freq_volt_pi_contr
 
     delta_P = P_gen - P_load;  % 修正后的功率不平衡 (kW)
 
-    % 纯下垂频偏 (一次调频): Δf = -R × f_nom × ΔP / P_base
-    freq_dev_raw = -R * f_nom * (delta_P / P_base);
+    % 纯下垂频偏 (一次调频): Δf = R × f_nom × (P_gen-P_load) / P_base
+    % 当发电不足时(P_gen<P_load → delta_P<0) → 频率下降(Δf<0)
+    freq_dev_raw = R * f_nom * (delta_P / P_base);
 
     % 指数平滑 (模拟转子惯性): 避免频率跳变
     freq_dev = alpha_f * pi_state.freq_dev_prev + (1 - alpha_f) * freq_dev_raw;
