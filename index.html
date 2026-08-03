@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="基于多智能体的去中心化虚拟电厂协同自治调控仿真平台。">
+<title>超越乙号新能源虚拟电站</title>
+<style>
+/* ================================================================
+   DESIGN TOKENS — Motionsites-inspired + VPP能源语义
+   ================================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+:root{
+  --bg-0:#060912;--bg-1:#0a101b;
+  --panel:rgba(15,23,36,.74);--panel-hover:rgba(17,27,44,.94);
+  --border:rgba(148,163,184,.11);--border-active:rgba(96,165,250,.38);
+  --t1:#f3f6fb;--t2:#8d99aa;--t3:#596779;
+  --bl:#4f8cff;--cy:#22d3ee;--gn:#34d399;--am:#fbbf24;--rd:#fb5a67;--vt:#8b8fff;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  font-family:'Inter','PingFang SC','Microsoft YaHei',system-ui,sans-serif;
+  background:radial-gradient(circle at 13% 6%,rgba(37,99,235,.13),transparent 30%),radial-gradient(circle at 86% 22%,rgba(34,211,238,.075),transparent 26%),linear-gradient(145deg,var(--bg-0),var(--bg-1));
+  color:var(--t1);-webkit-font-smoothing:antialiased;overflow-x:hidden
+}
+body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;background-image:linear-gradient(rgba(99,102,241,.022) 1px,transparent 1px),linear-gradient(90deg,rgba(99,102,241,.022) 1px,transparent 1px);background-size:44px 44px;mask-image:linear-gradient(to bottom,#000,transparent 88%)}
+a{color:inherit;text-decoration:none}
+
+/* ---- Motionsites Rule 1: Layout Hierarchy ---- */
+.page{position:relative;z-index:1}
+.nav{position:fixed;inset:0 0 auto;z-index:50;height:66px;padding:0 28px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(148,163,184,.08);background:rgba(7,12,22,.78);backdrop-filter:blur(18px)}
+.nav-brand{display:flex;align-items:center;gap:10px;font-weight:750;letter-spacing:-.025em}
+.nav-logo{width:31px;height:31px;display:grid;place-items:center;border-radius:10px;background:linear-gradient(145deg,rgba(79,140,255,.19),rgba(34,211,238,.06));border:1px solid rgba(79,140,255,.22)}
+.nav-cta{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 20px;color:#fff;font-size:.8rem;font-weight:650;border-radius:999px;background:linear-gradient(135deg,#4f8cff,#3976ed);box-shadow:0 10px 28px rgba(37,99,235,.18);transition:transform .22s ease,box-shadow .22s ease,filter .22s ease}
+.nav-cta:hover{transform:translateY(-2px);filter:brightness(1.06);box-shadow:0 15px 34px rgba(37,99,235,.28)}
+.nav-cta:active{transform:scale(.97)}
+
+/* ---- Motionsites Rule 2: Visual Material — Glass panels ---- */
+.panel{position:relative;overflow:hidden;border:1px solid var(--border);border-radius:21px;background:linear-gradient(145deg,rgba(255,255,255,.035),rgba(255,255,255,.007)),var(--panel);box-shadow:inset 0 1px 0 rgba(255,255,255,.035),0 20px 52px rgba(0,0,0,.2);backdrop-filter:blur(18px);transition:transform .28s cubic-bezier(.2,.8,.2,1),border-color .28s ease,box-shadow .28s ease}
+.panel::before{content:'';position:absolute;inset:0 0 auto;height:1px;background:linear-gradient(90deg,transparent,rgba(125,211,252,.42),transparent);opacity:.48;pointer-events:none}
+.panel:hover{transform:translateY(-3px);border-color:var(--border-active);box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 26px 64px rgba(0,0,0,.28),0 0 34px rgba(79,140,255,.055)}
+.btn-primary,.btn-secondary{min-height:46px;padding:0 27px;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-size:.8rem;font-weight:650;border-radius:999px;transition:transform .22s ease,box-shadow .22s ease,filter .22s ease}
+.btn-primary{color:#fff;background:linear-gradient(135deg,#4f8cff,#3976ed);box-shadow:0 10px 28px rgba(37,99,235,.18)}
+.btn-primary:hover{transform:translateY(-2px);filter:brightness(1.06);box-shadow:0 15px 34px rgba(37,99,235,.28)}
+.btn-primary:active{transform:scale(.97)}
+.btn-secondary{color:var(--t1);border:1px solid var(--border);background:rgba(255,255,255,.025)}
+.btn-secondary:hover{border-color:var(--border-active);transform:translateY(-2px);background:rgba(79,140,255,.04)}
+
+/* ---- Hero Triptych ---- */
+.hero{position:relative;min-height:100vh;display:grid;place-items:center;overflow:hidden;background:linear-gradient(90deg,#162839 0%,#1d2f40 33%,#0c192b 66%,#082132 100%)}
+.hero-img{position:absolute;top:0;width:33.333%;height:100%;object-fit:cover;filter:saturate(.58) contrast(1.02);will-change:transform;transition:filter 1s ease}
+.hero:hover .hero-img{filter:saturate(.8) contrast(1.04)}
+.hero-img.solar{left:0}.hero-img.wind{left:33.333%}.hero-img.tidal{left:66.666%}
+.hero-overlay{position:absolute;inset:0;z-index:2;background:linear-gradient(90deg,transparent 30%,rgba(6,9,18,.72) 33%,rgba(6,9,18,.9) 34%,rgba(6,9,18,.72) 36%,transparent 39%),linear-gradient(90deg,transparent 63%,rgba(6,9,18,.72) 66%,rgba(6,9,18,.9) 67%,rgba(6,9,18,.72) 69%,transparent 72%),linear-gradient(to top,var(--bg-0) 0%,transparent 56%),linear-gradient(to bottom,rgba(6,9,18,.96) 0%,transparent 30%),linear-gradient(to right,var(--bg-0) 0%,transparent 12%,transparent 88%,var(--bg-0) 100%);pointer-events:none}
+.hero-grid-overlay{position:absolute;inset:0;z-index:3;opacity:.28;pointer-events:none;background-image:linear-gradient(rgba(79,140,255,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(79,140,255,.08) 1px,transparent 1px);background-size:58px 58px;mask-image:radial-gradient(ellipse 72% 62% at 50% 42%,#000 18%,transparent 72%)}
+.hero-content{position:relative;z-index:8;max-width:790px;padding:120px 28px 80px;text-align:center;will-change:transform}
+.eyebrow{color:var(--bl);font-size:.68rem;font-weight:700;letter-spacing:.17em;text-transform:uppercase}
+.hero h1{margin:22px 0;font-size:clamp(2.6rem,6vw,4.9rem);line-height:1.03;letter-spacing:-.055em;font-weight:800}
+.hero h1 span{background:linear-gradient(130deg,#79a6ff 0%,#4f8cff 42%,#22d3ee 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero-desc{max-width:580px;margin:0 auto;color:rgba(224,231,241,.68);font-size:.95rem;line-height:1.8;font-weight:400}
+.hero-stats{display:flex;justify-content:center;flex-wrap:wrap;gap:13px;margin:34px 0}
+.hero-stat{min-width:135px;padding:13px 16px;border:1px solid rgba(255,255,255,.10);border-radius:14px;background:rgba(7,12,22,.42);backdrop-filter:blur(12px);transition:transform .22s ease,border-color .22s ease}
+.hero-stat:hover{transform:translateY(-2px);border-color:rgba(79,140,255,.3)}
+.hero-stat-value{font-family:'JetBrains Mono',monospace;font-size:1rem;font-weight:700;font-variant-numeric:tabular-nums}
+.hero-stat-label{margin-top:5px;color:rgba(255,255,255,.40);font-size:.59rem;letter-spacing:.09em;text-transform:uppercase}
+.hero-actions{display:flex;justify-content:center;flex-wrap:wrap;gap:12px}
+.hero-tags{position:absolute;z-index:7;inset:auto 0 28px;display:grid;grid-template-columns:repeat(3,1fr);pointer-events:none}
+.hero-tag{justify-self:center;padding:5px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.1);background:rgba(6,9,18,.42);color:rgba(255,255,255,.46);font-size:.58rem;font-weight:650;letter-spacing:.13em;text-transform:uppercase;backdrop-filter:blur(8px)}
+
+/* ---- Motionsites Rule 3: Animation Timeline ---- */
+@keyframes fadeUp{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:translateY(0)}}
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .75s cubic-bezier(.2,.8,.2,1),transform .75s cubic-bezier(.2,.8,.2,1)}
+.reveal.visible{opacity:1;transform:none}
+/* Stagger delays for feature cards */
+.reveal.d1{transition-delay:.0s}.reveal.d2{transition-delay:.1s}.reveal.d3{transition-delay:.2s}.reveal.d4{transition-delay:.3s}.reveal.d5{transition-delay:.4s}
+
+/* Stats Strip */
+.stats-strip{width:min(900px,calc(100% - 40px));margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.stat{padding:34px 18px;text-align:center}.stat+.stat{border-left:1px solid var(--border)}
+.stat-value{font-family:'JetBrains Mono',monospace;font-size:2rem;font-weight:750;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+.stat-label{margin-top:7px;color:var(--t3);font-size:.63rem;letter-spacing:.1em;text-transform:uppercase}
+
+/* Features */
+.section{width:min(1160px,calc(100% - 40px));margin:0 auto;padding:104px 0}
+.section-head{display:grid;grid-template-columns:1fr auto;align-items:end;gap:24px;margin-bottom:42px}
+.section-head h2{margin:10px 0 0;font-size:clamp(1.8rem,3vw,2.55rem);line-height:1.15;letter-spacing:-.045em}
+.section-head p{max-width:500px;margin:13px 0 0;color:var(--t2);font-size:.85rem;line-height:1.75}
+.section-index{color:var(--t3);font-family:'JetBrains Mono',monospace;font-size:.65rem;letter-spacing:.1em}
+.feature-layout{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(330px,.75fr);gap:17px;align-items:stretch}
+.feature-main{min-height:560px;padding:34px;display:flex;flex-direction:column}
+.feature-badge{display:inline-flex;align-items:center;gap:7px;width:max-content;padding:7px 10px;border:1px solid rgba(79,140,255,.18);border-radius:999px;color:#79a6ff;background:rgba(79,140,255,.07);font-size:.62rem;font-weight:650}
+.feature-main h3{margin:22px 0 12px;font-size:1.45rem;letter-spacing:-.035em}
+.feature-main>p{max-width:580px;color:var(--t2);font-size:.84rem;line-height:1.75}
+.topology-card{position:relative;flex:1;min-height:320px;margin-top:28px;border:1px solid rgba(148,163,184,.08);border-radius:18px;background:radial-gradient(circle at 50% 48%,rgba(79,140,255,.10),transparent 35%),rgba(2,8,19,.36);overflow:hidden}
+.topology-card::after{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(79,140,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(79,140,255,.04) 1px,transparent 1px);background-size:28px 28px;mask-image:radial-gradient(circle at 50% 50%,#000,transparent 74%)}
+.topology-svg{position:relative;z-index:2;width:100%;height:100%;min-height:320px}
+.flow{stroke-dasharray:7 10;animation:flowLine 1.7s linear infinite}@keyframes flowLine{to{stroke-dashoffset:-34}}
+.center-node{transform-origin:center;transform-box:fill-box;animation:centerPulse 3s ease-in-out infinite}@keyframes centerPulse{50%{filter:drop-shadow(0 0 16px rgba(79,140,255,.55))}}
+.topology-status{position:absolute;z-index:3;left:18px;right:18px;bottom:17px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.topology-status div{padding:10px 12px;border:1px solid rgba(148,163,184,.08);border-radius:11px;background:rgba(9,16,29,.70);backdrop-filter:blur(10px)}
+.topology-status strong{display:block;font-family:'JetBrains Mono',monospace;font-size:.76rem}
+.topology-status span{display:block;margin-top:4px;color:var(--t3);font-size:.56rem}
+
+.feature-stack{display:grid;grid-template-rows:repeat(3,1fr);gap:17px}
+.feature-card{min-height:175px;padding:25px;display:grid;grid-template-columns:1fr 120px;align-items:center;gap:16px}
+.feature-icon{width:40px;height:40px;display:grid;place-items:center;border-radius:12px;margin-bottom:17px;transition:transform .25s ease}
+.feature-card:hover .feature-icon{transform:scale(1.08) rotate(-2deg)}
+.feature-card h3{margin:0 0 8px;font-size:1rem;letter-spacing:-.025em}
+.feature-card p{color:var(--t2);font-size:.75rem;line-height:1.65}
+.mini-visual{position:relative;width:120px;height:100px;display:grid;place-items:center}
+.wave-line{stroke-dasharray:160;stroke-dashoffset:160;animation:drawWave 2.4s ease-in-out infinite alternate}@keyframes drawWave{to{stroke-dashoffset:0}}
+.forecast-bars{width:100%;height:70px;display:flex;align-items:flex-end;gap:6px}
+.forecast-bars i{flex:1;min-width:7px;border-radius:4px 4px 2px 2px;background:linear-gradient(to top,rgba(139,143,255,.24),#8b8fff);animation:barFloat 2.5s ease-in-out infinite;transform-origin:bottom}
+.forecast-bars i:nth-child(2){animation-delay:.2s}.forecast-bars i:nth-child(3){animation-delay:.4s}.forecast-bars i:nth-child(4){animation-delay:.6s}.forecast-bars i:nth-child(5){animation-delay:.8s}.forecast-bars i:nth-child(6){animation-delay:1s}
+@keyframes barFloat{50%{transform:scaleY(.78);filter:brightness(1.22)}}
+.dashboard-mini{width:112px;height:78px;border:1px solid rgba(79,140,255,.18);border-radius:10px;padding:9px;background:rgba(79,140,255,.035)}
+.dashboard-mini header{height:7px;border-radius:3px;background:rgba(79,140,255,.26);margin-bottom:8px}
+.dashboard-mini section{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:6px}
+.dashboard-mini section i{height:18px;border-radius:4px;background:rgba(255,255,255,.06)}
+.dashboard-mini footer{display:grid;grid-template-columns:1.4fr .8fr;gap:5px}
+.dashboard-mini footer i{height:28px;border-radius:4px;background:linear-gradient(145deg,rgba(34,211,238,.12),rgba(79,140,255,.04))}
+
+/* CTA Section */
+.cta-section{width:min(1160px,calc(100% - 40px));margin:0 auto;padding:0 0 104px}
+.cta-panel{min-height:300px;padding:44px;display:grid;grid-template-columns:1.05fr .95fr;gap:42px;align-items:center;background:radial-gradient(circle at 88% 50%,rgba(79,140,255,.14),transparent 35%),linear-gradient(145deg,rgba(255,255,255,.038),rgba(255,255,255,.006)),var(--panel-hover)}
+.cta-panel::after{content:'';position:absolute;width:260px;height:260px;right:-70px;top:20px;border:1px solid rgba(79,140,255,.13);border-radius:50%;box-shadow:0 0 0 42px rgba(79,140,255,.025),0 0 0 84px rgba(79,140,255,.015);pointer-events:none}
+.cta-copy{position:relative;z-index:2}
+.cta-copy h2{margin:12px 0 11px;font-size:clamp(1.7rem,3vw,2.45rem);letter-spacing:-.045em}
+.cta-copy p{max-width:520px;margin:0 0 26px;color:var(--t2);font-size:.84rem;line-height:1.75}
+.cta-actions{display:flex;gap:11px;flex-wrap:wrap}
+.control-preview{position:relative;z-index:2;padding:18px;border:1px solid rgba(148,163,184,.1);border-radius:16px;background:rgba(5,10,20,.52);box-shadow:inset 0 1px 0 rgba(255,255,255,.03)}
+.preview-head{display:flex;align-items:center;justify-content:space-between;padding-bottom:13px;border-bottom:1px solid rgba(148,163,184,.08)}
+.preview-title{font-size:.71rem;font-weight:650}
+.preview-live{display:flex;align-items:center;gap:6px;color:var(--gn);font-size:.58rem}
+.preview-live i{width:6px;height:6px;border-radius:50%;background:var(--gn);box-shadow:0 0 12px var(--gn);animation:breathe 2s ease-in-out infinite}@keyframes breathe{50%{opacity:.3}}
+.preview-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:13px}
+.preview-metric{padding:12px;border-radius:11px;background:rgba(255,255,255,.025);border:1px solid rgba(148,163,184,.07);transition:transform .2s ease,border-color .2s ease}
+.preview-metric:hover{transform:translateY(-2px);border-color:rgba(79,140,255,.25)}
+.preview-metric strong{display:block;font-family:'JetBrains Mono',monospace;font-size:.76rem;font-variant-numeric:tabular-nums}
+.preview-metric span{display:block;margin-top:5px;color:var(--t3);font-size:.54rem}
+.preview-flow{margin-top:10px;height:68px;border-radius:11px;position:relative;overflow:hidden;background:linear-gradient(90deg,rgba(79,140,255,.03),rgba(34,211,238,.04));border:1px solid rgba(148,163,184,.07)}
+.preview-flow::before{content:'';position:absolute;left:-40%;top:50%;width:70%;height:1px;background:linear-gradient(90deg,transparent,#4f8cff,transparent);box-shadow:0 0 13px #4f8cff;animation:scan 2.8s linear infinite}@keyframes scan{to{left:110%}}
+.preview-nodes{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-around}
+.preview-nodes i{width:14px;height:14px;border-radius:5px;background:rgba(79,140,255,.18);border:1px solid rgba(79,140,255,.4);box-shadow:0 0 14px rgba(79,140,255,.18)}
+
+/* Footer */
+.footer{padding:23px 20px;border-top:1px solid var(--border);color:var(--t3);font-size:.63rem}
+.footer-inner{width:min(1160px,100%);margin:auto;display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}
+.footer-links{display:flex;gap:20px}.footer a{color:var(--t2)}
+.footer a:hover{color:var(--bl)}
+
+/* ---- Motionsites Rule 5: Responsive ---- */
+@media(max-width:900px){.feature-layout,.cta-panel{grid-template-columns:1fr}.feature-main{min-height:auto}.feature-stack{grid-template-rows:none}.section-head{grid-template-columns:1fr}.section-index{display:none}}
+@media(max-width:680px){.nav{padding:0 16px}.hero-img{width:100%;height:33.333%;left:0!important}.hero-img.solar{top:0}.hero-img.wind{top:33.333%}.hero-img.tidal{top:66.666%}.hero-overlay{background:linear-gradient(to bottom,rgba(6,9,18,.92),transparent 26%,transparent 72%,var(--bg-0)),linear-gradient(to right,var(--bg-0),transparent 18%,transparent 82%,var(--bg-0))}.hero-tags{display:none}.hero-content{padding:105px 20px 70px}.hero h1{font-size:2.65rem}.stats-strip{grid-template-columns:1fr}.stat+.stat{border-left:0;border-top:1px solid var(--border)}.section{padding:78px 0}.feature-main{padding:23px}.topology-status{grid-template-columns:1fr}.topology-card{min-height:400px}.feature-card{grid-template-columns:1fr}.mini-visual{display:none}.cta-panel{padding:28px 22px}.preview-grid{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important}.reveal{opacity:1;transform:none}}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:rgba(148,163,184,.2);border-radius:2px}
+</style>
+</head>
+<body>
+<div class="page">
+  <nav class="nav">
+    <a href="#" class="nav-brand"><span class="nav-logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="8" width="4" height="12" rx="2" fill="#4f8cff"/><rect x="10" y="4" width="4" height="16" rx="2" fill="#8b8fff"/><rect x="17" y="6" width="4" height="14" rx="2" fill="#34d399"/></svg></span>超越乙号</a>
+    <a href="dashboard.html" class="nav-cta">进入控制舱<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+  </nav>
+
+  <!-- Hero with Motionsites Rule 4: Mouse parallax -->
+  <section class="hero" id="hero">
+    <img class="hero-img solar" src="https://images.unsplash.com/photo-1509391366360-2e959784a276?w=1200&h=1200&fit=crop&auto=format" alt="" onerror="this.style.display='none'">
+    <img class="hero-img wind" src="https://images.pexels.com/photos/414837/pexels-photo-414837.jpeg?auto=compress&cs=tinysrgb&w=1200&h=1200&fit=crop" alt="" onerror="this.style.display='none'">
+    <img class="hero-img tidal" src="https://images.pexels.com/photos/189349/pexels-photo-189349.jpeg?auto=compress&cs=tinysrgb&w=1200&h=1200&fit=crop" alt="" onerror="this.style.display='none'">
+    <div class="hero-overlay"></div><div class="hero-grid-overlay"></div>
+    <div class="hero-content">
+      <div class="eyebrow">Virtual Power Plant · Intelligent Dispatch</div>
+      <h1>新能源虚拟电站<br><span>协同自治调控</span></h1>
+      <p class="hero-desc">面向光伏、风电、潮汐、储能与灵活负荷的多智能体协同仿真平台，在通信中断时进入孤岛自治，恢复后无缝回归分布式协同。</p>
+      <div class="hero-stats">
+        <div class="hero-stat"><div class="hero-stat-value" style="color:var(--gn)">99.97%</div><div class="hero-stat-label">供电可靠性</div></div>
+        <div class="hero-stat"><div class="hero-stat-value" style="color:#79a6ff">50.02 Hz</div><div class="hero-stat-label">当前频率</div></div>
+        <div class="hero-stat"><div class="hero-stat-value">3 / 3</div><div class="hero-stat-label">VPP 在线</div></div>
+      </div>
+      <div class="hero-actions"><a href="dashboard.html" class="btn-primary">进入控制舱<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a><a href="#features" class="btn-secondary">查看核心能力</a></div>
+    </div>
+    <div class="hero-tags"><span class="hero-tag">Solar Power</span><span class="hero-tag">Wind Energy</span><span class="hero-tag">Tidal Generation</span></div>
+  </section>
+
+  <div class="stats-strip reveal">
+    <div class="stat"><div class="stat-value" data-value="3">0</div><div class="stat-label">VPP 子站</div></div>
+    <div class="stat"><div class="stat-value" data-value="6">0</div><div class="stat-label">能源类型</div></div>
+    <div class="stat"><div class="stat-value" data-value="24" data-suffix="h">0h</div><div class="stat-label">连续仿真</div></div>
+  </div>
+
+  <section id="features" class="section">
+    <div class="section-head reveal">
+      <div><div class="eyebrow">Core Capabilities</div><h2>双模式仿真引擎，<br>从局部自治到全局协同</h2><p>用能源拓扑、微型波形和运行状态直接表达系统能力。</p></div>
+      <div class="section-index">01 / CAPABILITIES</div>
+    </div>
+    <div class="feature-layout">
+      <article class="panel feature-main reveal d1">
+        <span class="feature-badge"><span style="width:6px;height:6px;border-radius:50%;background:var(--bl);box-shadow:0 0 10px var(--bl)"></span>ADMM DISTRIBUTED CONTROL</span>
+        <h3>去中心化协同调度</h3>
+        <p>每个 VPP 子站独立决策，通过 ADMM 与相邻节点交换边界信息。中央节点失效时仍可维持本地频率与供电，通信恢复后自动重新进入协同调度。</p>
+        <div class="topology-card">
+          <svg class="topology-svg" viewBox="0 0 760 340" fill="none">
+            <defs>
+              <linearGradient id="fg" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#22d3ee" stop-opacity=".12"/><stop offset=".5" stop-color="#4f8cff"/><stop offset="1" stop-color="#22d3ee" stop-opacity=".12"/></linearGradient>
+              <radialGradient id="cf"><stop stop-color="#4f8cff" stop-opacity=".32"/><stop offset="1" stop-color="#4f8cff" stop-opacity=".04"/></radialGradient>
+            </defs>
+            <path class="flow" d="M170 82 C260 82 278 150 337 165" stroke="url(#fg)" stroke-width="2"/>
+            <path class="flow" d="M170 170 C252 170 276 170 337 170" stroke="url(#fg)" stroke-width="2"/>
+            <path class="flow" d="M170 258 C260 258 278 190 337 175" stroke="url(#fg)" stroke-width="2"/>
+            <path class="flow" d="M423 165 C482 150 500 82 590 82" stroke="url(#fg)" stroke-width="2"/>
+            <path class="flow" d="M423 170 C484 170 508 170 590 170" stroke="url(#fg)" stroke-width="2"/>
+            <path class="flow" d="M423 175 C482 190 500 258 590 258" stroke="url(#fg)" stroke-width="2"/>
+            <g transform="translate(92 58)"><rect width="88" height="48" rx="14" fill="rgba(251,191,36,.07)" stroke="rgba(251,191,36,.22)"/><circle cx="22" cy="24" r="7" stroke="#fbbf24"/><path d="M22 11v5M22 32v5M9 24h5M30 24h5" stroke="#fbbf24"/><text x="42" y="29" fill="#8d99aa" font-size="12">光伏</text></g>
+            <g transform="translate(92 146)"><rect width="88" height="48" rx="14" fill="rgba(34,211,238,.07)" stroke="rgba(34,211,238,.22)"/><path d="M22 12v25M22 19l-11-6M22 19l9-9M22 19l5 13" stroke="#22d3ee"/><text x="42" y="29" fill="#8d99aa" font-size="12">风电</text></g>
+            <g transform="translate(92 234)"><rect width="88" height="48" rx="14" fill="rgba(79,140,255,.07)" stroke="rgba(79,140,255,.22)"/><path d="M10 29c8-10 16 10 24 0M10 21c8-10 16 10 24 0" stroke="#4f8cff"/><text x="42" y="29" fill="#8d99aa" font-size="12">潮汐</text></g>
+            <g class="center-node" transform="translate(335 125)"><circle cx="45" cy="45" r="44" fill="url(#cf)" stroke="rgba(79,140,255,.48)"/><circle cx="45" cy="45" r="31" fill="#08101e" stroke="rgba(125,211,252,.16)"/><path d="M47 19 33 46h11l-3 25 19-31H49l-2-21Z" fill="#4f8cff"/><text x="45" y="102" text-anchor="middle" fill="#596779" font-size="10">CONTROL CORE</text></g>
+            <g transform="translate(590 58)"><rect width="92" height="48" rx="14" fill="rgba(52,211,153,.07)" stroke="rgba(52,211,153,.22)"/><rect x="12" y="15" width="20" height="19" rx="3" stroke="#34d399"/><path d="M32 21h4v8h-4" stroke="#34d399"/><text x="44" y="29" fill="#8d99aa" font-size="12">储能</text></g>
+            <g transform="translate(590 146)"><rect width="92" height="48" rx="14" fill="rgba(251,90,103,.07)" stroke="rgba(251,90,103,.22)"/><path d="M13 35c10-8 3-16 12-25 0 8 9 9 5 21-3 7-12 7-17 4Z" stroke="#fb5a67"/><text x="44" y="29" fill="#8d99aa" font-size="12">燃机</text></g>
+            <g transform="translate(590 234)"><rect width="92" height="48" rx="14" fill="rgba(139,143,255,.07)" stroke="rgba(139,143,255,.22)"/><path d="M13 34h23M16 34V19h7v15M26 34V12h7v22" stroke="#8b8fff"/><text x="44" y="29" fill="#8d99aa" font-size="12">负荷</text></g>
+          </svg>
+          <div class="topology-status"><div><strong style="color:var(--gn)">3 / 3</strong><span>节点在线</span></div><div><strong style="color:var(--bl)">12 ms</strong><span>链路延迟</span></div><div><strong>0.1 h</strong><span>调度周期</span></div></div>
+        </div>
+      </article>
+
+      <div class="feature-stack">
+        <article class="panel feature-card reveal d2"><div><div class="feature-icon" style="color:var(--gn);background:rgba(52,211,153,.09)"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><h3>实时频率调控</h3><p>PI 动态调频与 Q–V 调压协同工作，持续将频率收敛在 50 ± 0.5 Hz。</p></div><div class="mini-visual"><svg width="118" height="82" viewBox="0 0 118 82" fill="none"><path d="M5 41h108" stroke="rgba(148,163,184,.12)"/><path class="wave-line" d="M5 41c12-30 20 28 32 0s22 20 34 0 22 8 42 0" stroke="#34d399" stroke-width="2"/><path d="M5 23h108M5 59h108" stroke="rgba(251,90,103,.16)" stroke-dasharray="4 5"/></svg></div></article>
+        <article class="panel feature-card reveal d3"><div><div class="feature-icon" style="color:var(--vt);background:rgba(139,143,255,.09)"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17 8 12l4 3 8-9"/><path d="M17 6h3v3"/></svg></div><h3>多能源智能预测</h3><p>LightGBM 融合天气与历史出力，提供分钟级光伏、风电功率预测。</p></div><div class="mini-visual"><div class="forecast-bars"><i style="height:32%"></i><i style="height:48%"></i><i style="height:66%"></i><i style="height:82%"></i><i style="height:73%"></i><i style="height:94%"></i></div></div></article>
+        <article class="panel feature-card reveal d4"><div><div class="feature-icon" style="color:var(--bl);background:rgba(79,140,255,.09)"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11"/></svg></div><h3>数字控制舱</h3><p>12 列响应式面板、能源拓扑、交互图表与事件时间线统一呈现。</p></div><div class="mini-visual"><div class="dashboard-mini"><header></header><section><i></i><i></i><i></i></section><footer><i></i><i></i></footer></div></div></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-section reveal d5">
+    <div class="panel cta-panel">
+      <div class="cta-copy"><div class="eyebrow">Control Room</div><h2>准备接入实时调度结果？</h2><p>运行 MATLAB 仿真生成时序数据，即可进入控制舱查看频率、SOC、出力结构、成本与告警事件的完整运行轨迹。</p><div class="cta-actions"><a href="dashboard.html" class="btn-primary">进入控制舱<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a><a href="#features" class="btn-secondary">查看系统能力</a></div></div>
+      <div class="control-preview"><div class="preview-head"><span class="preview-title">SYSTEM STATUS / LIVE PREVIEW</span><span class="preview-live"><i></i>READY</span></div><div class="preview-grid"><div class="preview-metric"><strong style="color:var(--bl)">50.02 Hz</strong><span>系统频率</span></div><div class="preview-metric"><strong style="color:var(--gn)">99.97%</strong><span>供电可靠性</span></div><div class="preview-metric"><strong>3 / 3</strong><span>节点在线</span></div></div><div class="preview-flow"><div class="preview-nodes"><i></i><i></i><i></i><i></i><i></i></div></div></div>
+    </div>
+  </section>
+
+  <footer class="footer"><div class="footer-inner"><span>&copy; 2026 超越乙号新能源虚拟电站</span><div class="footer-links"><a href="dashboard.html">控制舱</a><a href="#features">核心能力</a><a href="#">GitHub</a></div></div></footer>
+</div>
+
+<script>
+/* ---- Motionsites Rule 3: Scroll-triggered stagger reveal ---- */
+const ro=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');const ns=e.target.querySelectorAll('[data-value]');ns.forEach(el=>{const t=Number(el.dataset.value),s=el.dataset.suffix||'',st=performance.now();(function tick(n){const p=Math.min((n-st)/900,1),v=1-Math.pow(1-p,4);el.textContent=Math.round(t*v)+s;if(p<1)requestAnimationFrame(tick)})()});ro.unobserve(e.target)}}),{threshold:.16});
+document.querySelectorAll('.reveal').forEach(el=>ro.observe(el));
+
+/* ---- Motionsites Rule 4: Mouse parallax on hero ---- */
+(function(){
+  const hero=document.getElementById('hero'),imgs=hero?.querySelectorAll('.hero-img'),content=hero?.querySelector('.hero-content');
+  if(!hero)return;
+  let raf;
+  hero.addEventListener('mousemove',e=>{
+    if(raf)return;
+    raf=requestAnimationFrame(()=>{
+      const x=(e.clientX/window.innerWidth-.5)*18,y=(e.clientY/window.innerHeight-.5)*12;
+      imgs?.forEach((img,i)=>{const f=(i+1)*.5;img.style.transform=`scale(1.04) translate(${x*f}px,${y*f}px)`});
+      if(content)content.style.transform=`translate(${x*.3}px,${y*.3}px)`;
+      raf=null;
+    });
+  });
+  hero.addEventListener('mouseleave',()=>{imgs?.forEach(img=>img.style.transform='');if(content)content.style.transform=''});
+})();
+</script>
+</body>
+</html>
