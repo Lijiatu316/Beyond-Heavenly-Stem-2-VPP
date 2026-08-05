@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VPP 孤岛自治监控平台 V1.7</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<style>
+/* ================================================================
+   DESIGN TOKENS — Motionsites-inspired + VPP控制舱语义
+   ================================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+:root{
+  --bg-0:#060912;--bg-1:#09111f;
+  --panel:rgba(15,24,39,.76);--panel-strong:rgba(17,27,44,.94);
+  --border:rgba(148,163,184,.12);--border-active:rgba(96,165,250,.42);
+  --t1:#f4f7fb;--t2:#98a6b9;--t3:#5f6d80;
+  --bl:#4f8cff;--bl2:#79a6ff;--cy:#22d3ee;--gn:#34d399;--am:#fbbf24;--rd:#fb5a67;--or:#fb923c;--vt:#8b8fff;
+}
+html:not(.dark){
+  --bg-0:#eef3f9;--bg-1:#f8fafc;
+  --panel:rgba(255,255,255,.82);--panel-strong:rgba(255,255,255,.96);
+  --border:rgba(15,23,42,.10);--border-active:rgba(37,99,235,.35);--t1:#0f172a;--t2:#556274;--t3:#8b96a7;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{min-height:100vh;font-family:'Inter','PingFang SC','Microsoft YaHei',system-ui,sans-serif;color:var(--t1);background:radial-gradient(circle at 12% 5%,rgba(59,130,246,.13),transparent 28%),radial-gradient(circle at 90% 18%,rgba(34,211,238,.08),transparent 24%),linear-gradient(145deg,var(--bg-0),var(--bg-1));-webkit-font-smoothing:antialiased}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;background-image:linear-gradient(rgba(96,165,250,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(96,165,250,.025) 1px,transparent 1px);background-size:44px 44px;mask-image:linear-gradient(to bottom,#000,transparent 90%)}
+a{color:inherit;text-decoration:none}button{font:inherit;cursor:pointer}
+
+/* =========================================================
+   V1.7 — 大坝场景背景 · 分段场景图 + 半透明面板
+   ========================================================= */
+:root{
+  --scene-command:url("./assets/dam/05-hall.png");
+  --scene-kpi:url("./assets/dam/02-overview.png");
+  --scene-chart:url("./assets/dam/06-misty.png");
+  --dam-overlay-1:rgba(4,10,20,.42);
+  --dam-overlay-2:rgba(4,10,20,.28);
+  --dam-overlay-3:rgba(4,10,20,.52);
+}
+body{
+  position:relative;isolation:isolate;
+  background:radial-gradient(circle at 12% 4%,rgba(61,116,174,.10),transparent 28%),linear-gradient(180deg,#07101c 0%,#050b14 100%)!important;
+}
+body::before{
+  content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    linear-gradient(rgba(100,160,220,.018) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(100,160,220,.018) 1px,transparent 1px);
+  background-size:48px 48px;
+  mask-image:linear-gradient(to bottom,#000,transparent 92%);
+  -webkit-mask-image:linear-gradient(to bottom,#000,transparent 92%);
+}
+.page-shell{position:relative;z-index:2;background:transparent!important}
+.command-grid,.kpi-grid,.chart-grid{position:relative;isolation:isolate;margin-bottom:22px}
+.command-grid>*,.kpi-grid>*,.chart-grid>*{position:relative;z-index:2}
+
+/* Segment 1: Command → 工业大厅 */
+.command-grid::before{
+  content:"";position:absolute;inset:-20px -20px -28px;z-index:0;pointer-events:none;border-radius:26px;
+  background-image:
+    linear-gradient(90deg,rgba(4,10,20,.18),rgba(4,10,20,.05) 45%,rgba(4,10,20,.14)),
+    linear-gradient(180deg,rgba(4,10,20,.06) 0%,rgba(4,10,20,.12) 62%,rgba(4,10,20,.30)),
+    var(--scene-command);
+  background-size:cover;background-position:50% 44%;
+  filter:brightness(.96) contrast(1.04) saturate(.85);
+  box-shadow:0 28px 75px rgba(0,0,0,.20);
+}
+
+/* Segment 2: KPI → 大坝全景 */
+.kpi-grid::before{
+  content:"";position:absolute;inset:-9px;z-index:0;pointer-events:none;border-radius:25px;
+  background-image:
+    linear-gradient(90deg,rgba(5,12,22,.18),rgba(5,12,22,.08),rgba(5,12,22,.18)),
+    linear-gradient(180deg,rgba(4,10,20,.14),rgba(4,10,20,.30)),
+    var(--scene-kpi);
+  background-size:cover;background-position:50% 42%;
+  filter:brightness(.88) contrast(1.03) saturate(.78);
+  box-shadow:0 26px 70px rgba(0,0,0,.18);
+}
+
+/* Segment 3: Charts → 雾锁大坝 */
+.chart-grid::before{
+  content:"";position:absolute;inset:-8px;z-index:0;pointer-events:none;border-radius:26px;
+  background-image:
+    linear-gradient(180deg,rgba(4,10,20,.20),rgba(4,10,20,.08) 28%,rgba(4,10,20,.18) 70%,rgba(4,10,20,.40)),
+    var(--scene-chart);
+  background-size:cover;background-position:50% 46%;
+  filter:brightness(.90) contrast(1.03) saturate(.72);
+  box-shadow:0 30px 80px rgba(0,0,0,.22);
+}
+
+/* Panel transparency — 大框去壳，只保留小框 */
+.chart-card{
+  background:transparent!important;border:none!important;box-shadow:none!important;
+  backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+  overflow:visible!important;padding:4px 2px 2px!important;min-height:unset!important;
+}
+.chart-card::before,.chart-card::after{content:none!important;display:none!important}
+.chart-card .chart-head{margin-bottom:12px!important}
+.chart-card .chart-title,.chart-card .chart-subtitle{text-shadow:0 2px 10px rgba(0,0,0,.50)}
+.kpi-card{
+  background:linear-gradient(145deg,rgba(18,34,54,.42),rgba(8,22,40,.52))!important;
+  border-color:rgba(155,190,218,.16)!important;
+  box-shadow:0 14px 36px rgba(0,0,0,.18),inset 0 1px 0 rgba(210,225,240,.035)!important;
+  backdrop-filter:blur(10px) saturate(.86)!important;
+  -webkit-backdrop-filter:blur(10px) saturate(.86)!important;
+  transition:transform .22s,border-color .22s,background .22s;
+}
+.kpi-card:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--mc,#79a6ff) 38%,rgba(160,200,230,.24))!important}
+.command-main,.command-side{
+  background:transparent!important;border:none!important;box-shadow:none!important;
+  backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+}
+.command-metric{
+  background:linear-gradient(135deg,rgba(30,50,74,.52),rgba(14,30,50,.62))!important;
+  border:1px solid rgba(165,198,222,.20)!important;
+  box-shadow:0 10px 28px rgba(0,0,0,.18),inset 0 1px 0 rgba(220,235,248,.06)!important;
+  backdrop-filter:blur(8px) saturate(.96)!important;
+  -webkit-backdrop-filter:blur(8px) saturate(.96)!important;
+}
+.exchange-section{
+  background:linear-gradient(145deg,rgba(15,32,52,.72),rgba(6,20,38,.78))!important;
+  border:1px solid rgba(148,188,216,.14)!important;
+  box-shadow:inset 0 1px 0 rgba(210,225,240,.03)!important;
+  backdrop-filter:blur(8px)!important;
+  -webkit-backdrop-filter:blur(8px)!important;
+}
+.exchange-summary-item,.mini-stat,.mix-panel,.residual-stage{
+  background:linear-gradient(145deg,rgba(22,38,58,.54),rgba(10,24,42,.66))!important;
+  border:1px solid rgba(150,188,216,.15)!important;
+  box-shadow:inset 0 1px 0 rgba(210,225,240,.035)!important;
+  backdrop-filter:blur(8px)!important;
+  -webkit-backdrop-filter:blur(8px)!important;
+}
+.app-hd{
+  background:linear-gradient(180deg,rgba(18,34,54,.72),rgba(8,20,38,.78))!important;
+  border-bottom:1px solid rgba(148,184,212,.16)!important;
+  box-shadow:0 12px 36px rgba(0,0,0,.18),inset 0 -1px 0 rgba(210,225,240,.02)!important;
+  backdrop-filter:blur(15px) saturate(.80)!important;
+  -webkit-backdrop-filter:blur(15px) saturate(.80)!important;
+}
+.health-chip,.chart-status,.kpi-tag,.status-badge,.mode-badge,.mode-switch{
+  backdrop-filter:blur(8px)!important;-webkit-backdrop-filter:blur(8px)!important;
+}
+.node-row{
+  background:linear-gradient(135deg,rgba(22,38,58,.45),rgba(10,24,42,.58))!important;
+  border-color:rgba(148,186,214,.14)!important;
+}
+canvas{background:transparent!important}
+.panel-title,.chart-title,.brand-title,.command-metric-value,.kpi-value,.exchange-summary-value,.mini-stat-value{
+  text-shadow:0 2px 10px rgba(0,0,0,.50),0 0 1px rgba(0,0,0,.35);
+}
+.panel-desc,.chart-subtitle,.command-metric-label,.kpi-label{
+  color:rgba(200,216,230,.78)!important;text-shadow:0 1px 6px rgba(0,0,0,.40);
+}
+@media(max-width:980px){
+  .command-grid::before,.kpi-grid::before,.chart-grid::before{inset:-5px;border-radius:21px}
+  .panel,.kpi-card,.chart-card{background:linear-gradient(145deg,rgba(25,42,65,.72),rgba(10,24,44,.82))!important;backdrop-filter:blur(9px)!important;-webkit-backdrop-filter:blur(9px)!important}
+}
+@media(max-width:680px){
+  .chart-grid::before{background-image:linear-gradient(rgba(4,10,20,.52),rgba(4,10,20,.62)),var(--scene-chart)}
+  .panel,.kpi-card,.chart-card{background:rgba(18,34,56,.82)!important}
+}
+
+/* ---- Motionsites Rule 1: Layout Hierarchy — Header ---- */
+.app-hd{position:sticky;top:0;z-index:50;height:68px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--bg-1) 84%,transparent);backdrop-filter:blur(20px)}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.brand-mark{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;border:1px solid rgba(79,140,255,.24);background:linear-gradient(145deg,rgba(79,140,255,.18),rgba(34,211,238,.06));box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 10px 30px rgba(29,78,216,.12)}
+.brand-title{font-size:1.05rem;font-weight:750;letter-spacing:-.025em;white-space:nowrap}
+.brand-sub{margin-top:2px;color:var(--t3);font-size:.64rem;letter-spacing:.12em;text-transform:uppercase}
+.hd-left,.hd-right{display:flex;align-items:center;gap:14px}
+.mode-badge{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 14px;border-radius:999px;border:1px solid rgba(251,90,103,.28);background:rgba(251,90,103,.09);color:#ff7a85;font-size:.72rem;font-weight:700;letter-spacing:.06em}
+.mode-dot{width:7px;height:7px;border-radius:50%;background:var(--rd);box-shadow:0 0 0 0 rgba(251,90,103,.45);animation:modePulse 2.2s infinite}@keyframes modePulse{55%{box-shadow:0 0 0 7px rgba(251,90,103,0)}}
+.hd-meta{display:flex;align-items:center;gap:18px;color:var(--t2);font-size:.72rem}
+.meta-item{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.icon-btn{height:34px;padding:0 12px;display:inline-flex;align-items:center;gap:7px;color:var(--t2);border:1px solid var(--border);border-radius:9px;background:rgba(255,255,255,.02);transition:.22s ease}.icon-btn:hover{color:var(--t1);border-color:var(--border-active);transform:translateY(-1px)}.icon-btn:active{transform:scale(.97)}
+.mode-switch{display:flex;gap:2px;padding:3px;border:1px solid var(--border);border-radius:10px;background:rgba(148,163,184,.04)}
+.mode-switch a{display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:7px;font-size:.68rem;font-weight:550;color:var(--t2);transition:.2s ease}
+.mode-switch a:hover,.mode-switch a.active{background:var(--panel-strong);color:var(--t1)}
+.sw-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+
+/* ---- Motionsites Rule 2: Visual Material — Glass Panels ---- */
+.page-shell{position:relative;z-index:1;width:min(1660px,100%);margin:0 auto;padding:20px}
+.panel{position:relative;overflow:hidden;border:1px solid var(--border);border-radius:18px;background:var(--panel);box-shadow:0 12px 36px rgba(0,0,0,.12);backdrop-filter:blur(8px);transition:border-color .28s ease}
+.panel::before{content:'';position:absolute;inset:0 0 auto;height:1px;opacity:.3;background:linear-gradient(90deg,transparent,rgba(125,211,252,.25),transparent);pointer-events:none}
+.panel:hover{border-color:var(--border-active)}
+
+.command-grid{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(320px,.72fr);gap:16px;margin-bottom:16px}
+.command-main{min-height:315px;padding:24px}
+.command-side{padding:22px;min-height:315px}
+.eyebrow{color:var(--bl2);font-size:.64rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
+.panel-head{position:relative;z-index:2;display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
+.panel-title{margin:6px 0 0;font-size:1.05rem;font-weight:720;letter-spacing:-.025em}
+.panel-desc{margin-top:6px;color:var(--t3);font-size:.73rem}
+.health-chip{display:inline-flex;align-items:center;gap:7px;padding:7px 10px;border-radius:999px;background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.20);color:var(--gn);font-size:.68rem;font-weight:650;white-space:nowrap}
+.health-chip span{width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 12px currentColor}
+/* V1.7 — Draggable topology (transparent for dam bg) */
+.topology-wrap{height:185px;margin-top:8px;overflow:visible;background:transparent!important;border:none!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+.topology-wrap svg{filter:drop-shadow(0 4px 12px rgba(0,0,0,.58))}#energyTopology{width:100%;height:100%;overflow:visible;touch-action:none;user-select:none;-webkit-user-select:none}
+.topology-link{fill:none;opacity:.64;stroke-dasharray:8 8;vector-effect:non-scaling-stroke;transition:opacity .18s,filter .18s;animation:topologyFlow 2.2s linear infinite}
+@keyframes topologyFlow{to{stroke-dashoffset:-32}}
+.exchange-line{stroke-dasharray:4 6;animation:exchangeFlow 1.4s linear infinite}
+@keyframes exchangeFlow{to{stroke-dashoffset:-20}}
+.drag-energy-node{cursor:grab;outline:none;touch-action:none;transform-box:fill-box;transform-origin:center}
+.drag-energy-node .node-background{transition:fill .18s,stroke .18s,filter .18s}
+/* 图标和文字不拦截事件，让事件落到背景矩形上 */
+.drag-energy-node text,.drag-energy-node path,.drag-energy-node circle{pointer-events:none}
+.drag-energy-node .node-background{pointer-events:all}
+.drag-energy-node:hover .node-background,.drag-energy-node:focus-visible .node-background{filter:brightness(1.24);stroke-width:1.35}
+.drag-energy-node:hover{filter:drop-shadow(0 0 8px rgba(79,140,255,.28)) drop-shadow(0 8px 14px rgba(0,0,0,.22))}
+.drag-energy-node.is-dragging{cursor:grabbing;filter:url("#nodeGlow") drop-shadow(0 12px 22px rgba(0,0,0,.34))}
+.drag-energy-node.is-dragging .node-background{filter:brightness(1.34);stroke-width:1.6}
+.topology-link.is-active{opacity:1;filter:drop-shadow(0 0 5px rgba(79,140,255,.82)) drop-shadow(0 0 12px rgba(52,211,153,.30));stroke-width:2.6}
+.solver-core{transform-origin:450px 95px;animation:solverBreathing 3.6s ease-in-out infinite}
+@keyframes solverBreathing{0%,100%{opacity:.94}50%{opacity:1}}
+@media(prefers-reduced-motion:reduce){.topology-link,.solver-core{animation:none}}
+/* V1.7 — Drag hit-area fix */
+.drag-energy-node{pointer-events:all!important}
+.drag-energy-node .node-background{pointer-events:all!important;cursor:grab}
+.drag-energy-node.is-dragging .node-background{cursor:grabbing}
+.command-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:2px}
+.command-metric{padding:12px 14px;border-radius:13px;border:1px solid rgba(148,163,184,.08);background:rgba(255,255,255,.025);transition:transform .2s ease,border-color .2s ease}
+.command-metric:hover{transform:translateY(-2px);border-color:rgba(79,140,255,.25)}
+.command-metric-label{color:var(--t3);font-size:.64rem;letter-spacing:.06em;text-transform:uppercase}
+.command-metric-value{margin-top:5px;font-family:'JetBrains Mono',monospace;font-size:1.02rem;font-weight:650;font-variant-numeric:tabular-nums}
+.command-metric-sub{margin-top:3px;color:var(--t3);font-size:.62rem}
+
+.node-title-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.node-count{color:var(--gn);font-family:'JetBrains Mono',monospace;font-size:.75rem}
+.node-list{display:grid;gap:10px}
+.node-row{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:13px;border:1px solid rgba(148,163,184,.09);border-radius:14px;background:rgba(255,255,255,.022);transition:.2s ease}
+.node-row:hover{border-color:rgba(79,140,255,.28);background:rgba(79,140,255,.045);transform:translateX(3px)}
+.node-index{width:31px;height:31px;border-radius:10px;display:grid;place-items:center;font-size:.69rem;font-weight:750;color:var(--bl2);background:rgba(79,140,255,.10)}
+.node-name{font-size:.76rem;font-weight:650}.node-meta{margin-top:3px;color:var(--t3);font-size:.63rem}
+.node-status{text-align:right}.node-frequency{font-family:'JetBrains Mono',monospace;font-size:.75rem;font-weight:650;font-variant-numeric:tabular-nums}
+.online{margin-top:3px;color:var(--gn);font-size:.6rem}
+.side-footer{display:flex;justify-content:space-between;gap:10px;padding-top:14px;margin-top:14px;border-top:1px solid rgba(148,163,184,.08);color:var(--t3);font-size:.63rem}
+
+/* ---- Motionsites Rule 1: KPI Grid — clear hierarchy ---- */
+.kpi-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:16px;margin-bottom:16px}
+.kpi-card{min-height:148px;padding:18px}
+.kpi-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.kpi-icon{width:34px;height:34px;display:grid;place-items:center;border-radius:11px;color:var(--mc,var(--bl));background:color-mix(in srgb,var(--mc,var(--bl)) 12%,transparent)}
+.kpi-tag{padding:5px 8px;border:1px solid rgba(148,163,184,.09);border-radius:999px;color:var(--t3);font-size:.58rem}
+.kpi-label{margin-top:16px;color:var(--t2);font-size:.69rem}
+.kpi-value{margin-top:5px;color:var(--mc,var(--t1));font-family:'JetBrains Mono',monospace;font-size:1.72rem;line-height:1.1;font-weight:760;letter-spacing:-.045em;font-variant-numeric:tabular-nums}
+.kpi-footer{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px;color:var(--t3);font-size:.59rem}
+.progress{height:3px;margin-top:10px;border-radius:99px;overflow:hidden;background:rgba(148,163,184,.10)}
+.progress>span{display:block;width:var(--p,0%);height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--mc,var(--bl)),color-mix(in srgb,var(--mc,var(--bl)) 55%,white));box-shadow:0 0 14px color-mix(in srgb,var(--mc,var(--bl)) 32%,transparent);transition:width .8s cubic-bezier(.2,.8,.2,1)}
+
+/* ---- Chart Grid ---- */
+.chart-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px}
+.span-8{grid-column:span 8}.span-7{grid-column:span 7}.span-5{grid-column:span 5}.span-4{grid-column:span 4}
+.chart-card{min-height:360px;padding:20px}
+.chart-card canvas{width:100%!important;height:260px!important;max-height:260px}
+/* Standalone chart framing — 独立图表补框 */
+#chartCost,#chartPower,#chartVPP{
+  display:block;width:100%!important;
+  border-radius:18px!important;
+  border:1px solid rgba(148,188,216,.16)!important;
+  background:linear-gradient(145deg,rgba(15,32,52,.68),rgba(6,20,38,.76))!important;
+  box-shadow:0 14px 36px rgba(0,0,0,.18),inset 0 1px 0 rgba(210,225,240,.04)!important;
+  backdrop-filter:blur(8px)!important;-webkit-backdrop-filter:blur(8px)!important;
+  margin-bottom:12px!important;
+}
+.frequency-card,.soc-card{min-height:430px}
+.frequency-card canvas,.soc-card canvas{max-height:none!important}
+.chart-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:15px}
+.chart-title-wrap{display:flex;align-items:center;gap:11px}
+.chart-icon{width:32px;height:32px;display:grid;place-items:center;border-radius:10px;background:rgba(79,140,255,.08);color:var(--bl2)}
+.chart-title{font-size:.84rem;font-weight:690;letter-spacing:-.015em}
+.chart-subtitle{margin-top:4px;color:var(--t3);font-size:.61rem}
+.chart-status{display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid rgba(148,163,184,.09);border-radius:999px;color:var(--t3);font-size:.58rem}
+.chart-status i{width:5px;height:5px;border-radius:50%;background:var(--gn);box-shadow:0 0 10px var(--gn)}
+.legend-row{display:flex;flex-wrap:wrap;gap:10px;color:var(--t2);font-size:.59rem}
+.legend-row span{display:inline-flex;align-items:center;gap:5px}
+.legend-row b{width:7px;height:7px;border-radius:2px;display:inline-block}
+
+/* ---- Motionsites Rule 4: Alarm timeline with stagger ---- */
+.alarm-list{max-height:288px;overflow:auto;padding-right:4px}
+.alarm-item{display:grid;grid-template-columns:10px 1fr auto;gap:10px;padding:11px 4px;border-bottom:1px solid rgba(148,163,184,.07);opacity:0;animation:alarmEnter .4s cubic-bezier(.2,.8,.2,1) forwards}
+@keyframes alarmEnter{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:translateX(0)}}
+.alarm-item:last-child{border-bottom:0}
+.alarm-level{width:7px;height:7px;margin-top:5px;border-radius:50%;background:var(--ac,var(--rd));box-shadow:0 0 12px color-mix(in srgb,var(--ac,var(--rd)) 50%,transparent)}
+.alarm-name{font-size:.7rem;font-weight:620}
+.alarm-detail{margin-top:4px;color:var(--t3);font-size:.61rem}
+.alarm-time{color:var(--t3);font-family:'JetBrains Mono',monospace;font-size:.59rem}
+.empty-alarm{height:250px;display:grid;place-items:center;text-align:center;color:var(--t3)}
+.empty-alarm strong{display:block;color:var(--gn);font-size:.78rem;margin-bottom:5px}
+
+/* ---- Loading ---- */
+.loading-cover{position:fixed;inset:68px 0 0;z-index:40;display:grid;place-items:center;background:color-mix(in srgb,var(--bg-0) 72%,transparent);backdrop-filter:blur(8px);transition:opacity .35s ease,visibility .35s ease}
+.loading-cover.hidden{opacity:0;visibility:hidden}
+.loader{width:42px;height:42px;border:2px solid rgba(79,140,255,.15);border-top-color:var(--bl);border-radius:50%;animation:spin .8s linear infinite;margin:auto}@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{margin-top:14px;color:var(--t2);font-size:.72rem}
+
+/* ---- Motionsites Rule 5: Responsive ---- */
+/* V1.7 — Frequency & SOC heatmap + multi-select */
+.exchange-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.freq-body,.soc-body{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:12px;align-items:stretch}
+.freq-heatmap-wrap,.soc-heatmap-wrap{position:relative;min-height:240px}
+#freqHeatmap,#socHeatmap{display:block;width:100%!important;height:240px!important;max-height:240px!important;cursor:crosshair}
+#chartFreqDetail,#chartSOCDetail{display:block;width:100%!important;height:240px!important;max-height:240px!important}
+.freq-summary,.soc-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:12px}
+.multi-select-wrap{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.multi-select-chip{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 10px;border:1px solid rgba(148,163,184,.16);border-radius:999px;background:rgba(255,255,255,.03);color:var(--t3);font-size:.6rem;cursor:pointer;transition:.18s ease;user-select:none;-webkit-user-select:none;white-space:nowrap}
+.multi-select-chip:hover{border-color:rgba(148,163,184,.32);color:var(--t2)}
+.multi-select-chip.checked{border-color:var(--border-active);background:rgba(79,140,255,.12);color:var(--bl2);font-weight:600}
+.multi-select-chip .chip-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+.heatmap-tooltip{position:absolute;z-index:8;display:none;pointer-events:none;min-width:128px;padding:8px 10px;border:1px solid rgba(148,163,184,.16);border-radius:9px;background:rgba(7,13,25,.96);box-shadow:0 12px 32px rgba(0,0,0,.28);color:var(--t1);font-size:.61rem;line-height:1.55;transform:translate(10px,-105%)}
+.heatmap-tooltip strong{display:block;font-size:.65rem}
+.heatmap-tooltip span{color:var(--t2);font-family:'JetBrains Mono',monospace}
+.freq-heatmap-gradient{width:92px;height:6px;border-radius:99px;background:linear-gradient(90deg,#4f8cff,#34d399 50%,#fb923c);box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)}
+.soc-heatmap-gradient{width:92px;height:6px;border-radius:99px;background:linear-gradient(90deg,#fb5a67,#fbbf24 50%,#34d399);box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)}
+.heatmap-scale{display:flex;align-items:center;gap:7px;color:var(--t3);font-size:.55rem;white-space:nowrap}
+@media(max-width:1180px){.freq-body,.soc-body{grid-template-columns:1fr}}
+@media(max-width:680px){.freq-summary,.soc-summary{grid-template-columns:1fr 1fr}}
+/* V1.7 — Exchange section style (shared by freq/soc heatmap cards) */
+.exchange-section{padding:14px;border:1px solid rgba(148,163,184,.075);border-radius:14px;background:rgba(3,8,18,.18)}
+.exchange-section+.exchange-section{margin-top:12px}
+.exchange-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+.exchange-section-title{font-size:.68rem;font-weight:650;color:var(--t2)}
+.exchange-section-note{font-size:.56rem;color:var(--t3)}
+.exchange-summary-item{padding:10px 12px;border:1px solid rgba(148,163,184,.08);border-radius:11px;background:rgba(255,255,255,.022)}
+.exchange-summary-label{color:var(--t3);font-size:.57rem;letter-spacing:.06em;text-transform:uppercase}
+.exchange-summary-value{margin-top:5px;font-family:'JetBrains Mono',monospace;font-size:.85rem;font-weight:650;font-variant-numeric:tabular-nums}
+
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(148,163,184,.22);border-radius:99px}
+@media(max-width:1280px){.kpi-grid{grid-template-columns:repeat(3,1fr)}.command-grid{grid-template-columns:1fr}.command-side{min-height:auto}.node-list{grid-template-columns:repeat(3,1fr)}.side-footer{display:none}}
+@media(max-width:980px){.app-hd{height:auto;min-height:68px;padding:12px 18px;align-items:flex-start}.hd-meta{display:none}.page-shell{padding:14px}.chart-grid{grid-template-columns:1fr}.span-8,.span-7,.span-5,.span-4{grid-column:span 1}.chart-card{min-height:350px}.node-list{grid-template-columns:1fr}}
+@media(max-width:680px){.brand-sub,.mode-badge{display:none}.kpi-grid{grid-template-columns:1fr 1fr;gap:10px}.command-main,.command-side,.chart-card{border-radius:16px}.command-metrics{grid-template-columns:1fr}.topology-wrap{height:150px}.kpi-card{min-height:138px;padding:15px}.chart-card{padding:15px}.chart-card canvas{height:260px!important}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<div id="loadingCover" class="loading-cover"><div><div class="loader"></div><div class="loading-text">正在接入孤岛仿真数据...</div></div></div>
+
+<header class="app-hd">
+  <div class="hd-left">
+    <a href="index.html" class="brand">
+      <img src="./assets/logo.png" alt="超越乙号" style="height:36px;width:auto;border-radius:6px;filter:drop-shadow(0 0 12px rgba(232,168,48,.4))">
+      <span><span class="brand-title">VPP 孤岛自治监控平台</span><span class="brand-sub">Autonomous Energy Control Room</span></span>
+    </a>
+    <span class="mode-badge"><span class="mode-dot"></span>孤岛运行</span>
+  </div>
+  <div class="hd-right">
+    <div class="mode-switch">
+      <a href="dashboard_island_v1.7.html" class="active"><span class="sw-dot" style="color:var(--rd)"></span>孤岛模式</a>
+      <a href="dashboard_cooperate_v2.16.html"><span class="sw-dot" style="color:var(--gn)"></span>协同模式</a>
+    </div>
+    <div class="hd-meta">
+      <span class="meta-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span id="simTime">--</span></span>
+      <span class="meta-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h7l2 2h9v10H3z"/></svg><span id="dataSource">--</span></span>
+    </div>
+    <button class="icon-btn" onclick="toggleTheme()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3a9 9 0 1 0 9 9c-3 2-7 1-9-1s-3-6 0-8Z"/></svg><span id="themeLabel">主题</span></button>
+  </div>
+</header>
+
+<main class="page-shell" id="mainContent">
+  <section class="command-grid">
+    <article class="panel command-main">
+      <div class="panel-head"><div><div class="eyebrow">System Overview</div><h1 class="panel-title">实时运行态势</h1><div class="panel-desc">多能源汇聚、储能调节与负荷平衡的全局状态</div></div><span class="health-chip"><span></span>全系统稳定</span></div>
+      <div class="topology-wrap"><svg id="energyTopology" viewBox="0 0 900 185" fill="none" aria-label="可拖拽能源拓扑图"><defs><linearGradient id="topologyLine" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#22d3ee" stop-opacity=".20"/><stop offset=".5" stop-color="#4f8cff"/><stop offset="1" stop-color="#34d399" stop-opacity=".20"/></linearGradient><linearGradient id="coreFill" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#4f8cff" stop-opacity=".28"/><stop offset="1" stop-color="#22d3ee" stop-opacity=".08"/></linearGradient><filter id="coreGlow" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter><filter id="nodeGlow" x="-60%" y="-80%" width="220%" height="260%"><feGaussianBlur stdDeviation="4" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><g class="topology-links"><path id="link-pv" class="topology-link" stroke="url(#topologyLine)" stroke-width="2"/><path id="link-wind" class="topology-link" stroke="url(#topologyLine)" stroke-width="2"/><path id="link-tidal" class="topology-link" stroke="url(#topologyLine)" stroke-width="2"/><path id="link-storage" class="topology-link" stroke="url(#topologyLine)" stroke-width="2"/><path id="link-gas" class="topology-link" stroke="url(#topologyLine)" stroke-width="2"/><path id="link-load" class="topology-link" stroke="url(#topologyLine)" stroke-width="2"/></g><g opacity=".72" pointer-events="none">
+  <path d="M350 70 C390 40 420 40 450 70 C480 40 510 40 550 70" stroke="#34d399" stroke-width="1.5" class="exchange-line"/>
+  <path d="M350 120 C390 150 420 150 450 120 C480 150 510 150 550 120" stroke="#4f8cff" stroke-width="1.5" class="exchange-line"/>
+</g><g id="node-pv" class="drag-energy-node node-pv" data-node="pv" data-side="left" data-width="78" data-home-x="82" data-home-y="28" transform="translate(82 28)" tabindex="0"><rect class="node-background" width="78" height="34" rx="10" fill="rgba(251,191,36,.10)" stroke="rgba(251,191,36,.34)"/><circle cx="18" cy="17" r="6" fill="#fbbf24" fill-opacity=".16" stroke="#fbbf24"/><text x="32" y="21" fill="var(--t2)" font-size="11">光伏</text></g><g id="node-wind" class="drag-energy-node node-wind" data-node="wind" data-side="left" data-width="78" data-home-x="82" data-home-y="78" transform="translate(82 78)" tabindex="0"><rect class="node-background" width="78" height="34" rx="10" fill="rgba(34,211,238,.10)" stroke="rgba(34,211,238,.34)"/><path d="M18 7v20M18 13l-9-5M18 13l8-7" stroke="#22d3ee" stroke-width="1.2"/><text x="32" y="21" fill="var(--t2)" font-size="11">风电</text></g><g id="node-tidal" class="drag-energy-node node-tidal" data-node="tidal" data-side="left" data-width="78" data-home-x="82" data-home-y="128" transform="translate(82 128)" tabindex="0"><rect class="node-background" width="78" height="34" rx="10" fill="rgba(79,140,255,.10)" stroke="rgba(79,140,255,.34)"/><path d="M9 20c6-8 12 8 18 0" stroke="#4f8cff" stroke-width="1.4"/><text x="32" y="21" fill="var(--t2)" font-size="11">潮汐</text></g><g id="node-storage" class="drag-energy-node node-storage" data-node="storage" data-side="right" data-width="84" data-home-x="740" data-home-y="28" transform="translate(740 28)" tabindex="0"><rect class="node-background" width="84" height="34" rx="10" fill="rgba(52,211,153,.10)" stroke="rgba(52,211,153,.34)"/><text x="42" y="21" text-anchor="middle" fill="var(--t2)" font-size="11">储能</text></g><g id="node-gas" class="drag-energy-node node-gas" data-node="gas" data-side="right" data-width="84" data-home-x="740" data-home-y="78" transform="translate(740 78)" tabindex="0"><rect class="node-background" width="84" height="34" rx="10" fill="rgba(251,146,60,.10)" stroke="rgba(251,146,60,.34)"/><text x="42" y="21" text-anchor="middle" fill="var(--t2)" font-size="11">燃机</text></g><g id="node-load" class="drag-energy-node node-load" data-node="load" data-side="right" data-width="84" data-home-x="740" data-home-y="128" transform="translate(740 128)" tabindex="0"><rect class="node-background" width="84" height="34" rx="10" fill="rgba(139,143,255,.10)" stroke="rgba(139,143,255,.34)"/><text x="42" y="21" text-anchor="middle" fill="var(--t2)" font-size="11">负荷</text></g><g class="solver-core" transform="translate(390 35)" filter="url(#coreGlow)" pointer-events="none"><circle cx="60" cy="60" r="57" fill="url(#coreFill)" stroke="rgba(79,140,255,.52)"/><circle cx="60" cy="60" r="44" fill="rgba(7,13,25,.92)" stroke="rgba(125,211,252,.18)"/><path d="M60 31 45 59h12l-4 30 22-36H63l-3-22Z" fill="#4f8cff"/><text x="60" y="108" text-anchor="middle" fill="var(--t3)" font-size="10">VPP CONTROL CORE</text></g></svg></div>
+      <div class="command-metrics"><div class="command-metric"><div class="command-metric-label">当前频率</div><div class="command-metric-value" id="overviewFreq" style="color:var(--bl2)">--</div><div class="command-metric-sub">控制目标 50.00 Hz</div></div><div class="command-metric"><div class="command-metric-label">瞬时新能源出力</div><div class="command-metric-value" id="overviewRenewable" style="color:var(--gn)">--</div><div class="command-metric-sub">光伏 + 风电</div></div><div class="command-metric"><div class="command-metric-label">当前总负荷</div><div class="command-metric-value" id="overviewLoad">--</div><div class="command-metric-sub">全站负荷合计</div></div></div>
+    </article>
+    <aside class="panel command-side"><div class="node-title-row"><div><div class="eyebrow">Node Health</div><div class="panel-title">VPP 节点状态</div></div><span class="node-count" id="nodeCount">3 / 3 ONLINE</span></div><div class="node-list" id="nodeListContainer"></div><div class="side-footer"><span>通信链路延迟 &lt; 12 ms</span><span>调度周期 0.1 h</span></div></aside>
+  </section>
+
+  <section class="kpi-grid">
+    <article class="panel kpi-card" style="--mc:var(--gn)"><div class="kpi-top"><span class="kpi-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 16c5-8 8-9 16-10-1 8-4 13-11 14-3 .5-5-1-5-4Z"/><path d="M7 17c3-3 6-5 10-7"/></svg></span><span class="kpi-tag">24h 累计</span></div><div class="kpi-label">新能源消纳率</div><div class="kpi-value" id="kpiRenewable">--</div><div class="progress"><span id="pRenewable"></span></div><div class="kpi-footer"><span>光伏 + 风电 + 潮汐</span><span id="renewableState">计算中</span></div></article>
+    <article class="panel kpi-card" style="--mc:var(--bl)"><div class="kpi-top"><span class="kpi-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg></span><span class="kpi-tag">安全区间</span></div><div class="kpi-label">频率合格率</div><div class="kpi-value" id="kpiFreq">--</div><div class="progress"><span id="pFreq"></span></div><div class="kpi-footer"><span>49.5–50.5 Hz</span><span>目标 ≥ 99%</span></div></article>
+    <article class="panel kpi-card" style="--mc:var(--cy)"><div class="kpi-top"><span class="kpi-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 4 7v5c0 5 3 8 8 9 5-1 8-4 8-9V7l-8-4Z"/><path d="m9 12 2 2 4-4"/></svg></span><span class="kpi-tag">供电质量</span></div><div class="kpi-label">供电可靠性</div><div class="kpi-value" id="kpiReliability">--</div><div class="progress"><span id="pReliability"></span></div><div class="kpi-footer"><span>1 − 切负荷 / 总需求</span><span>目标 ≥ 99.9%</span></div></article>
+    <article class="panel kpi-card" style="--mc:var(--am)"><div class="kpi-top"><span class="kpi-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6"/></svg></span><span class="kpi-tag">经济运行</span></div><div class="kpi-label">调度总成本</div><div class="kpi-value" id="kpiCost">--</div><div class="progress"><span style="--p:72%"></span></div><div class="kpi-footer"><span>燃料 + 惩罚 + 弃电</span><span>全天成本</span></div></article>
+    <article class="panel kpi-card" style="--mc:var(--vt)"><div class="kpi-top"><span class="kpi-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 20V8l6-4 6 4v12M9 20v-5h6v5"/><path d="M8 10h2M14 10h2"/></svg></span><span class="kpi-tag">碳核算</span></div><div class="kpi-label">CO₂ 排放</div><div class="kpi-value" id="kpiCO2">--</div><div class="progress"><span style="--p:56%"></span></div><div class="kpi-footer"><span>燃机 0.5 kg/kWh</span><span>模型估算</span></div></article>
+    <article class="panel kpi-card" style="--mc:var(--rd)"><div class="kpi-top"><span class="kpi-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 2.8 19h18.4L12 3Z"/><path d="M12 9v4M12 16h.01"/></svg></span><span class="kpi-tag">事件总数</span></div><div class="kpi-label">系统告警</div><div class="kpi-value" id="kpiAlarms">--</div><div class="progress"><span id="pAlarm"></span></div><div class="kpi-footer"><span>频率 / SOC / 切负荷</span><span id="alarmState">计算中</span></div></article>
+  </section>
+
+  <section class="chart-grid">
+    <!-- V1.7 — 频率热力图 + 多选折线图 -->
+    <article class="panel chart-card span-8 frequency-card"><div class="chart-head"><span><div class="chart-title">系统频率趋势</div><div class="chart-subtitle" id="freqSubtitle">各VPP频率热力总览 · 点击行切换</div></span><div class="exchange-toolbar"><span class="chart-status"><i></i><span id="freqVppCount">--</span> 个VPP</span><div class="multi-select-wrap" id="freqChips"></div></div></div><div class="freq-summary"><div class="exchange-summary-item"><div class="exchange-summary-label">当前频率</div><div class="exchange-summary-value" id="freqCurrent">--</div></div><div class="exchange-summary-item"><div class="exchange-summary-label">平均频率</div><div class="exchange-summary-value" id="freqAverage">--</div></div><div class="exchange-summary-item"><div class="exchange-summary-label">最大频偏</div><div class="exchange-summary-value" id="freqMaxDev">--</div></div><div class="exchange-summary-item"><div class="exchange-summary-label">合格率</div><div class="exchange-summary-value" id="freqSafePct">--</div></div></div><div class="freq-body"><div class="exchange-section"><div class="exchange-section-head"><span class="exchange-section-title">各VPP频率偏差热力图</span><span class="heatmap-scale"><span>偏低</span><span class="freq-heatmap-gradient"></span><span>偏高</span></span></div><div class="freq-heatmap-wrap"><canvas id="freqHeatmap"></canvas><div id="freqHeatTooltip" class="heatmap-tooltip"></div></div></div><div class="exchange-section"><div class="exchange-section-head"><span class="exchange-section-title" id="freqLineTitle">系统均值 · 频率趋势</span><span class="exchange-section-note" id="freqLineNote">绿色区域为49.5–50.5 Hz</span></div><canvas id="chartFreqDetail"></canvas></div></div></article>
+    <!-- 成本构成 -->
+    <article class="panel chart-card span-4"><div class="chart-head"><div class="chart-title-wrap"><span class="chart-icon" style="color:var(--or);background:rgba(251,146,60,.08)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M12 4v8l6 3"/></svg></span><span><div class="chart-title">成本构成</div><div class="chart-subtitle">燃料、切负荷与弃可再生</div></span></div><span class="chart-status">24h</span></div><canvas id="chartCost"></canvas></article>
+    <!-- 出力堆叠 -->
+    <article class="panel chart-card span-7"><div class="chart-head"><div class="chart-title-wrap"><span class="chart-icon" style="color:var(--am);background:rgba(251,191,36,.08)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V9M10 20V4M16 20v-7M22 20H2"/></svg></span><span><div class="chart-title">各 VPP 出力堆叠</div><div class="chart-subtitle">新能源、燃机与储能协同供能</div></span></div><div class="legend-row"><span><b style="background:#fbbf24"></b>光伏</span><span><b style="background:#22d3ee"></b>风电</span><span><b style="background:#fb7b82"></b>燃气</span><span><b style="background:#34d399"></b>储能</span></div></div><canvas id="chartPower"></canvas></article>
+    <!-- 事件时间线 -->
+    <article class="panel chart-card span-5"><div class="chart-head"><div class="chart-title-wrap"><span class="chart-icon" style="color:var(--rd);background:rgba(251,90,103,.08)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 2.8 19h18.4L12 3Z"/><path d="M12 9v4M12 16h.01"/></svg></span><span><div class="chart-title">事件时间线</div><div class="chart-subtitle" id="alarmCountLabel">正在解析告警...</div></span></div><span class="chart-status">最新优先</span></div><div id="alarmLog" class="alarm-list"></div></article>
+    <!-- V1.7 — SOC热力图 + 多选折线图 -->
+    <article class="panel chart-card span-7 soc-card"><div class="chart-head"><span><div class="chart-title">储能 SOC 轨迹</div><div class="chart-subtitle" id="socSubtitle">各VPP储能状态热力总览 · 点击行切换</div></span><div class="exchange-toolbar"><span class="chart-status"><i></i><span id="socVppCount">--</span> 个VPP</span><div class="multi-select-wrap" id="socChips"></div></div></div><div class="soc-summary"><div class="exchange-summary-item"><div class="exchange-summary-label">当前最低SOC</div><div class="exchange-summary-value" id="socMin">--</div></div><div class="exchange-summary-item"><div class="exchange-summary-label">当前最高SOC</div><div class="exchange-summary-value" id="socMax">--</div></div><div class="exchange-summary-item"><div class="exchange-summary-label">系统均值</div><div class="exchange-summary-value" id="socAvg">--</div></div><div class="exchange-summary-item"><div class="exchange-summary-label">充放电次数</div><div class="exchange-summary-value" id="socCycles">--</div></div></div><div class="soc-body"><div class="exchange-section"><div class="exchange-section-head"><span class="exchange-section-title">各VPP储能SOC热力图</span><span class="heatmap-scale"><span>低</span><span class="soc-heatmap-gradient"></span><span>高</span></span></div><div class="soc-heatmap-wrap"><canvas id="socHeatmap"></canvas><div id="socHeatTooltip" class="heatmap-tooltip"></div></div></div><div class="exchange-section"><div class="exchange-section-head"><span class="exchange-section-title" id="socLineTitle">系统均值 · SOC趋势</span><span class="exchange-section-note" id="socLineNote">10%–90% 充放电安全边界</span></div><canvas id="chartSOCDetail"></canvas></div></div></article>
+    <!-- VPP指标对比 -->
+    <article class="panel chart-card span-5"><div class="chart-head"><div class="chart-title-wrap"><span class="chart-icon" style="color:var(--vt);background:rgba(139,143,255,.08)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10h4v10M10 20V4h4v16M16 20v-7h4v7"/></svg></span><span><div class="chart-title">逐 VPP 指标对比</div><div class="chart-subtitle">消纳率、频率、可靠性与成本</div></span></div><span class="chart-status">VPP 1–3</span></div><canvas id="chartVPP"></canvas></article>
+  </section>
+</main>
+
+<script>
+function toggleTheme(){document.documentElement.classList.toggle('dark');const d=document.documentElement.classList.contains('dark');localStorage.setItem('vpp-theme',d?'dark':'light');document.getElementById('themeLabel').textContent=d?'暗色':'浅色';setTimeout(()=>location.reload(),80)}
+(function(){const s=localStorage.getItem('vpp-theme');if(s==='light')document.documentElement.classList.remove('dark');addEventListener('DOMContentLoaded',()=>{const l=document.getElementById('themeLabel');if(l)l.textContent=document.documentElement.classList.contains('dark')?'暗色':'浅色'})})();
+
+async function loadCSV(f){const r=await fetch(f);if(!r.ok)throw new Error('HTTP '+r.status);const t=await r.text();return Papa.parse(t.charCodeAt(0)===0xFEFF?t.slice(1):t,{header:true,dynamicTyping:true,skipEmptyLines:true})}
+
+/* ---- Motionsites Rule 3: Number counter animation ---- */
+function animNum(el,target,opts){if(!el)return;opts=opts||{};var v=Number(target),st=v!==v||v===Infinity||v===-Infinity?0:v,d=opts.duration||850,dec=opts.decimals||1,suf=opts.suffix||'',fmt=opts.formatter,s=performance.now();requestAnimationFrame(function tick(n){var p=Math.min((n-s)/d,1),e=1-Math.pow(1-p,4),cur=st*e;el.textContent=fmt?fmt(cur):cur.toFixed(dec)+suf;if(p<1)requestAnimationFrame(tick)})}
+function css(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()}
+function rgba(h,a){const x=h.replace('#','');const r=parseInt(x.length===3?x.split('').map(c=>c+c).join(''):x,16);return`rgba(${(r>>16)&255},${(r>>8)&255},${r&255},${a})`}
+
+async function init(){
+  const ld=document.getElementById('loadingCover');
+  try{
+    console.log('Dashboard init: loading CSV...');
+    const ts=await loadCSV('island_timeseries.csv');
+    console.log('CSV loaded, fields:', ts.meta.fields?ts.meta.fields.length:0);
+    const F=ts.meta.fields||[];
+    function col(n){if(F.includes(n))return n;const b='﻿'+n;if(F.includes(b))return b;return F.find(f=>f&&f.replace('﻿','').includes(n))||n}
+    const TIME=col('Time_h');
+    const D=ts.data.filter(r=>r[TIME]!=null);
+    if(!D.length)throw new Error('数据为空');
+    // Dynamic VPP detection from column names
+    const detectedIds=[...new Set(F.map(f=>{const m=String(f||'').replace(/^﻿/,'').match(/^VPP(\d+)_PV_kW$/);return m?Number(m[1]):null}).filter(Number.isFinite))].sort((a,b)=>a-b);
+    const vppIds=detectedIds.length?detectedIds:[1,2,3];
+    const Nv=vppIds.length;
+    console.log('Detected VPPs:',vppIds,'Nv:',Nv);
+    const C={pv:[],wind:[],gas:[],bat:[],load:[],shed:[],curt:[],soc:[],freq:[]};
+    const fields={pv:'PV_kW',wind:'Wind_kW',gas:'Gas_kW',bat:'Bat_kW',load:'Load_kW',shed:'Shed_kW',curt:'Curtail_kW',soc:'SOC',freq:'Freq_Hz'};
+    for(const vppId of vppIds){for(const[k,f]of Object.entries(fields)){C[k].push(col('VPP'+vppId+'_'+f))}}
+    const N=D.length,dt=.1;
+    let tPV=0,tWind=0,tGas=0,tLoad=0,tShed=0,tCurt=0,ok=0;const alarms=[];
+    D.forEach(r=>{for(let v=0;v<Nv;v++){tPV+=r[C.pv[v]]||0;tWind+=r[C.wind[v]]||0;tGas+=r[C.gas[v]]||0;tLoad+=r[C.load[v]]||0;tShed+=r[C.shed[v]]||0;tCurt+=r[C.curt[v]]||0;const f=r[C.freq[v]];if(f!=null&&f>=49.5&&f<=50.5)ok++;if(f!=null&&f<49.5)alarms.push({t:r[TIME],vpp:v+1,type:'低频告警',detail:f.toFixed(2)+' Hz',color:'#fb5a67'});if(f!=null&&f>50.5)alarms.push({t:r[TIME],vpp:v+1,type:'过频告警',detail:f.toFixed(2)+' Hz',color:'#fb923c'});const s=r[C.soc[v]];if(s!=null&&s<.12)alarms.push({t:r[TIME],vpp:v+1,type:'SOC 过低',detail:(s*100).toFixed(1)+'%',color:'#fbbf24'});const sh=r[C.shed[v]];if(sh!=null&&sh>1)alarms.push({t:r[TIME],vpp:v+1,type:'切负荷事件',detail:sh.toFixed(0)+' kW',color:'#fb5a67'})}});
+    const renAv=tPV+tWind,renR=renAv>0?Math.max(0,(1-tCurt/Math.max(renAv,1)))*100:0,fR=ok/(N*Nv)*100,rel=tLoad>0?(1-tShed/tLoad)*100:100;
+    const fuelC=tGas*.35*dt,shedC=tShed*5*dt,curtC=tCurt*.1*dt,totC=fuelC+shedC+curtC,co2=tGas*dt*.5;
+    console.log('Data processed: renR='+renR.toFixed(1)+'%, fR='+fR.toFixed(1)+'%, alarms='+alarms.length);
+
+    // Generate VPP node list FIRST — before any chart code that might fail
+    try{
+      document.getElementById('nodeCount').textContent=Nv+' / '+Nv+' ONLINE';
+      const vppNames=['沿海综合站','潮汐协同站','灵活调峰站','山地光伏站','平原风电A站','平原风电B站','河口潮汐A站','河口潮汐B站','近海潮汐站'];
+      const vppMetas=['光伏/风电/储能','潮汐/储能/负荷','燃机/风电/储能','光伏/储能/负荷','风电/光伏/储能','风电/燃机/储能','潮汐/光伏/储能','潮汐/风电/储能','潮汐/燃机/储能'];
+      const nl=document.getElementById('nodeListContainer');nl.innerHTML='';
+      for(let v=0;v<Nv;v++){const row=document.createElement('div');row.className='node-row';
+        row.innerHTML='<span class="node-index">'+(v<9?'0':'')+(v+1)+'</span><span><div class="node-name">VPP '+(v+1)+(v<vppNames.length?' · '+vppNames[v]:'')+'</div><div class="node-meta">'+(v<vppMetas.length?vppMetas[v]:'综合能源')+'</div></span><span class="node-status"><div class="node-frequency" id="nodeFreq'+(v+1)+'">--</div><div class="online">ONLINE</div></span>';
+        nl.appendChild(row);
+      }
+    }catch(e){console.error('Node list error:',e)}
+    document.getElementById('dataSource').textContent='island_timeseries.csv · '+N+' 行';
+
+    try{
+    animNum(document.getElementById('kpiRenewable'),renR,{suffix:'%'});animNum(document.getElementById('kpiFreq'),fR,{suffix:'%'});animNum(document.getElementById('kpiReliability'),rel,{suffix:'%'});
+    animNum(document.getElementById('kpiCost'),totC,{decimals:0,formatter:v=>'¥'+Math.round(v).toLocaleString('zh-CN')});
+    animNum(document.getElementById('kpiCO2'),co2,{decimals:0,formatter:v=>Math.round(v).toLocaleString('zh-CN')+' kg'});
+    animNum(document.getElementById('kpiAlarms'),alarms.length,{decimals:0});
+    document.getElementById('pRenewable').style.setProperty('--p',Math.min(renR,100)+'%');
+    document.getElementById('pFreq').style.setProperty('--p',Math.min(fR,100)+'%');
+    document.getElementById('pReliability').style.setProperty('--p',Math.min(rel,100)+'%');
+    document.getElementById('pAlarm').style.setProperty('--p',Math.min(alarms.length/4,100)+'%');
+    document.getElementById('renewableState').textContent=renR>=90?'优':'需优化';
+    document.getElementById('alarmState').textContent=alarms.length?'存在事件':'运行正常';
+    document.getElementById('simTime').textContent='仿真: 24h × '+N+' 步 (dt=0.1h)';
+    }catch(e){console.error('KPI error:',e)}
+
+    const last=D[N-1],curF=C.freq.reduce((s,c)=>s+(last[c]||50),0)/Nv,curRen=C.pv.reduce((s,c)=>s+(last[c]||0),0)+C.wind.reduce((s,c)=>s+(last[c]||0),0),curLoad=C.load.reduce((s,c)=>s+(last[c]||0),0);
+    document.getElementById('overviewFreq').textContent=curF.toFixed(3)+' Hz';
+    document.getElementById('overviewRenewable').textContent=Math.round(curRen).toLocaleString('zh-CN')+' kW';
+    document.getElementById('overviewLoad').textContent=Math.round(curLoad).toLocaleString('zh-CN')+' kW';
+    for(let v=0;v<Nv;v++){const el=document.getElementById('nodeFreq'+(v+1));if(el)el.textContent=(last[C.freq[v]]||50).toFixed(3)+' Hz';}
+    document.getElementById('freqSubtitle').textContent='当前 '+curF.toFixed(3)+' Hz · '+Nv+'站平均频率';
+
+    try{
+    const dark=document.documentElement.classList.contains('dark');
+    const t2=dark?'#98a6b9':'#556274',t3=dark?'#5f6d80':'#8b96a7',gridC=dark?'rgba(148,163,184,.08)':'rgba(15,23,42,.08)',panel=dark?'#0f1827':'#ffffff';
+    Chart.defaults.color=t2;Chart.defaults.font.family="Inter,'PingFang SC',sans-serif";Chart.defaults.animation.duration=900;
+    const tip={backgroundColor:dark?'rgba(8,14,26,.94)':'rgba(255,255,255,.97)',titleColor:dark?'#f4f7fb':'#0f172a',bodyColor:t2,borderColor:dark?'rgba(148,163,184,.16)':'rgba(15,23,42,.12)',borderWidth:1,padding:11,cornerRadius:10};
+    const labels=D.map(r=>(r[TIME]*1).toFixed(1)),fAvg=D.map(r=>C.freq.reduce((s,c)=>s+(r[c]||50),0)/Nv);
+    function calcFreqStats(data){let min=Infinity,max=-Infinity,safe=0,sum=0;for(const raw of data){const v=Number.isFinite(Number(raw))?Number(raw):50;sum+=v;if(v<min)min=v;if(v>max)max=v;if(v>=49.5&&v<=50.5)safe++}return{current:data.length?(Number(data[data.length-1])||50):50,average:data.length?sum/data.length:50,min:Number.isFinite(min)?min:50,max:Number.isFinite(max)?max:50,maxDev:Math.max(Math.abs((Number.isFinite(min)?min:50)-50),Math.abs((Number.isFinite(max)?max:50)-50)),safe,safePct:data.length?safe/data.length*100:100}}
+    const fStats=calcFreqStats(fAvg);
+    const frequencySeries=C.freq.map((cn,i)=>{const data=D.map(r=>{const v=Number(r[cn]);return Number.isFinite(v)?v:50});return{cn,label:'VPP'+vppIds[i],data,stats:calcFreqStats(data),color:['#4f8cff','#34d399','#fbbf24','#fb923c','#8b8fff','#22d3ee','#fb5a67','#a78bfa','#f472b6'][i%9]}});
+    const frequencyOptions=[{label:'系统均值',data:fAvg,stats:fStats,isAverage:true,color:'#e2e8f0'},...frequencySeries];
+    const allFrequencyValues=frequencySeries.flatMap(s=>s.data);
+    const globalFreqMin=Math.min(49,...allFrequencyValues),globalFreqMax=Math.max(51,...allFrequencyValues);
+    const freqYMin=Math.floor((globalFreqMin-.05)*10)/10,freqYMax=Math.ceil((globalFreqMax+.05)*10)/10;
+    // Multi-select chips
+    try{
+    let freqSelected=new Set(['系统均值']);let freqDetailChart=null,freqHeatState=null;
+    const freqChipWrap=document.getElementById('freqChips');
+    frequencyOptions.forEach((s,i)=>{const chip=document.createElement('span');chip.className='multi-select-chip'+(i===0?' checked':'');chip.innerHTML='<span class="chip-dot" style="color:'+s.color+'"></span>'+s.label;chip.addEventListener('click',()=>{if(freqSelected.has(s.label)){if(freqSelected.size>1){freqSelected.delete(s.label);chip.classList.remove('checked')}}else{freqSelected.add(s.label);chip.classList.add('checked')}updateFreqDetail()});freqChipWrap.appendChild(chip)});
+    document.getElementById('freqVppCount').textContent=Nv;
+    // Frequency heatmap
+    function freqHeatColor(value){const dev=value-50,mag=Math.min(Math.abs(dev)/.5,1),base=dark?[15,24,39]:[238,243,249];const target=Math.abs(dev)<=.08?[52,211,153]:(dev<0?[79,140,255]:[251,146,60]);const mix=Math.abs(dev)<=.08?.48:(.14+Math.pow(mag,.7)*.82);return'rgb('+base.map((v,i)=>Math.round(v+(target[i]-v)*mix)).join(',')+')'}
+    function drawFreqHeatmap(){const canvas=document.getElementById('freqHeatmap');if(!canvas||!frequencySeries.length)return;const rect=canvas.getBoundingClientRect(),w=Math.max(320,rect.width),h=240,dpr=Math.max(1,window.devicePixelRatio||1);canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);const ctx=canvas.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);const left=58,right=10,top=6,bottom=24,rows=frequencySeries.length,cols=Math.max(24,Math.min(64,Math.floor((w-left-right)/9)));const plotW=w-left-right,plotH=h-top-bottom,cellW=plotW/cols,cellH=plotH/rows,values=[];ctx.font="9px 'JetBrains Mono',monospace";ctx.textBaseline='middle';for(let row=0;row<rows;row++){const s=frequencySeries[row],rowVals=[];ctx.fillStyle=freqSelected.has(s.label)?(dark?'#dbeafe':'#1e3a8a'):t2;ctx.textAlign='right';ctx.fillText(s.label,left-7,top+(row+.5)*cellH);for(let col=0;col<cols;col++){const from=Math.floor(col*s.data.length/cols),to=Math.max(from+1,Math.floor((col+1)*s.data.length/cols));let sum=0;for(let i=from;i<to;i++)sum+=s.data[i]||50;const value=sum/(to-from);rowVals.push(value);ctx.fillStyle=freqHeatColor(value);ctx.fillRect(left+col*cellW+.4,top+row*cellH+.4,Math.max(.5,cellW-.8),Math.max(.5,cellH-.8))}values.push(rowVals)}ctx.strokeStyle=dark?'rgba(148,163,184,.10)':'rgba(15,23,42,.10)';ctx.lineWidth=1;for(let r=0;r<=rows;r++){const y=top+r*cellH;ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(w-right,y);ctx.stroke()}ctx.fillStyle=t3;ctx.textAlign='center';ctx.textBaseline='top';ctx.font="9px 'JetBrains Mono',monospace";const timeValues=D.map(r=>Number(r[TIME])).filter(Number.isFinite);for(let i=0;i<5;i++){const p=i/4,idx=Math.min(timeValues.length-1,Math.round(p*(timeValues.length-1))),x=left+p*plotW;ctx.fillText((Number.isFinite(timeValues[idx])?timeValues[idx].toFixed(i===4?0:1):(p*24).toFixed(0))+'h',x,h-bottom+7)}freqHeatState={left,right,top,bottom,rows,cols,cellW,cellH,values,w,h}}
+    // Frequency detail chart
+    const freqBandPlugin={id:'freqSafeBand',beforeDraw(chart){const y=chart.scales.y;if(!y)return;const{ctx,chartArea:{left,right}}=chart,top=y.getPixelForValue(50.5),bottom=y.getPixelForValue(49.5);ctx.save();ctx.fillStyle='rgba(52,211,153,.055)';ctx.fillRect(left,top,right-left,bottom-top);ctx.strokeStyle='rgba(52,211,153,.24)';ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(left,y.getPixelForValue(50));ctx.lineTo(right,y.getPixelForValue(50));ctx.stroke();ctx.restore()}};
+    function updateFreqDetail(){const selected=frequencyOptions.filter(s=>freqSelected.has(s.label));const st=frequencyOptions[0].stats;document.getElementById('freqCurrent').textContent=st.current.toFixed(3)+' Hz';document.getElementById('freqCurrent').style.color=Math.abs(st.current-50)<=.2?'var(--gn)':Math.abs(st.current-50)<=.5?'var(--am)':'var(--rd)';document.getElementById('freqAverage').textContent=st.average.toFixed(3)+' Hz';document.getElementById('freqMaxDev').textContent=st.maxDev.toFixed(3)+' Hz';document.getElementById('freqMaxDev').style.color=st.maxDev<=.2?'var(--gn)':st.maxDev<=.5?'var(--am)':'var(--rd)';document.getElementById('freqSafePct').textContent=st.safePct.toFixed(1)+'%';document.getElementById('freqSafePct').style.color=st.safePct>=99?'var(--gn)':st.safePct>=95?'var(--am)':'var(--rd)';document.getElementById('freqLineTitle').textContent=selected.map(s=>s.label).join(' + ')+' · 频率趋势';document.getElementById('freqLineNote').textContent='范围 '+st.min.toFixed(3)+'–'+st.max.toFixed(3)+' Hz · 绿色区域49.5–50.5 Hz';if(freqDetailChart)freqDetailChart.destroy();const canvas=document.getElementById('chartFreqDetail'),ctx=canvas.getContext('2d');const datasets=selected.map((s,i)=>{const grad=ctx.createLinearGradient(0,0,0,240);grad.addColorStop(0,'rgba(79,140,255,.20)');grad.addColorStop(1,'rgba(79,140,255,0)');return{label:s.label,data:s.data,borderColor:s.isAverage?'rgba(226,232,240,.72)':s.color,backgroundColor:s.isAverage?grad:'transparent',borderWidth:s.isAverage?2.4:1.6,borderDash:s.isAverage?[]:[3,2],pointRadius:0,pointHoverRadius:3,tension:.32,fill:s.isAverage}});freqDetailChart=new Chart(ctx,{type:'line',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:selected.length>1,position:'bottom',labels:{color:t2,usePointStyle:true,boxWidth:7,padding:10,font:{size:9}}},tooltip:{...tip,callbacks:{label:c=>c.dataset.label+': '+Number(c.raw).toFixed(3)+' Hz'}}},scales:{x:{ticks:{color:t3,maxTicksLimit:9},grid:{color:gridC}},y:{min:freqYMin,max:freqYMax,ticks:{color:t3,callback:v=>Number(v).toFixed(1)+'Hz'},grid:{color:gridC}}}},plugins:[freqBandPlugin]});drawFreqHeatmap()}
+    const freqCanvas=document.getElementById('freqHeatmap'),freqTooltip=document.getElementById('freqHeatTooltip');
+    freqCanvas.addEventListener('mousemove',e=>{if(!freqHeatState)return;const rect=freqCanvas.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top,s=freqHeatState;if(x<s.left||x>s.w-s.right||y<s.top||y>s.h-s.bottom){freqTooltip.style.display='none';return}const col=Math.min(s.cols-1,Math.floor((x-s.left)/s.cellW)),row=Math.min(s.rows-1,Math.floor((y-s.top)/s.cellH)),value=s.values[row][col],from=Math.floor(col*N/s.cols),time=Number(D[from]?.[TIME]);freqTooltip.innerHTML='<strong>'+frequencySeries[row].label+'</strong><span>'+(Number.isFinite(time)?time.toFixed(1):'--')+' h · '+value.toFixed(3)+' Hz · 偏差 '+(value-50>=0?'+':'')+(value-50).toFixed(3)+' Hz</span>';freqTooltip.style.left=x+'px';freqTooltip.style.top=y+'px';freqTooltip.style.display='block'});
+    freqCanvas.addEventListener('mouseleave',()=>freqTooltip.style.display='none');
+    freqCanvas.addEventListener('click',e=>{if(!freqHeatState)return;const rect=freqCanvas.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top,s=freqHeatState;if(x<s.left||x>s.w-s.right||y<s.top||y>s.h-s.bottom)return;const row=Math.min(s.rows-1,Math.floor((y-s.top)/s.cellH)),label=frequencySeries[row].label;if(freqSelected.has(label)){if(freqSelected.size>1)freqSelected.delete(label)}else{freqSelected.clear();freqSelected.add(label)}freqChipWrap.querySelectorAll('.multi-select-chip').forEach((c,i)=>{if(i===0){c.classList.toggle('checked',freqSelected.has('系统均值'))}else{const l=frequencyOptions[i]?.label;c.classList.toggle('checked',freqSelected.has(l))}});updateFreqDetail()});
+    if(window.ResizeObserver)new ResizeObserver(()=>requestAnimationFrame(drawFreqHeatmap)).observe(freqCanvas.parentElement);
+    updateFreqDetail();
+    }catch(e){console.error('Freq init error:',e)}
+
+    new Chart(document.getElementById('chartCost'),{type:'doughnut',data:{labels:['燃料成本','切负荷惩罚','弃可再生'],datasets:[{data:[fuelC,shedC,curtC],backgroundColor:['#fb923c','#fb5a67','#fbbf24'],hoverOffset:5,borderColor:panel,borderWidth:3,borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,cutout:'68%',plugins:{tooltip:tip,legend:{position:'bottom',labels:{color:t2,usePointStyle:true,pointStyle:'circle',boxWidth:8,padding:15,font:{size:10}}}}},plugins:[{id:'center',afterDraw(chart){const{ctx,chartArea:{l,r,t,b}}=chart;ctx.save();ctx.textAlign='center';ctx.fillStyle=dark?'#f4f7fb':'#0f172a';ctx.font='700 18px JetBrains Mono';ctx.fillText('¥'+Math.round(totC).toLocaleString('zh-CN'),(l+r)/2,(t+b)/2-2);ctx.fillStyle=t3;ctx.font='500 10px Inter';ctx.fillText('总调度成本',(l+r)/2,(t+b)/2+17);ctx.restore()}}]});
+
+    const skip=Math.max(1,Math.floor(N/48)),pv=[],w=[],g=[],b=[],tl=[];
+    for(let i=0;i<N;i+=skip){let p=0,ww=0,gg=0,bb=0;for(let v=0;v<Nv;v++){p+=D[i][C.pv[v]]||0;ww+=D[i][C.wind[v]]||0;gg+=D[i][C.gas[v]]||0;bb+=Math.max(0,D[i][C.bat[v]]||0)}pv.push(p);w.push(ww);g.push(gg);b.push(bb);tl.push(labels[i])}
+    new Chart(document.getElementById('chartPower'),{type:'bar',data:{labels:tl,datasets:[{label:'光伏',data:pv,backgroundColor:'rgba(251,191,36,.92)',borderRadius:3},{label:'风电',data:w,backgroundColor:'rgba(34,211,238,.88)',borderRadius:3},{label:'燃气',data:g,backgroundColor:'rgba(251,123,130,.88)',borderRadius:3},{label:'储能',data:b,backgroundColor:'rgba(52,211,153,.88)',borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:tip},scales:{x:{stacked:true,ticks:{color:t3,maxTicksLimit:12},grid:{display:false}},y:{stacked:true,ticks:{color:t3},grid:{color:gridC},title:{display:true,text:'kW',color:t3}}}}});
+
+    // V1.7 — SOC heatmap + multi-select
+    try{
+    const socColors=['#4f8cff','#34d399','#fbbf24','#fb923c','#8b8fff','#22d3ee','#fb5a67','#a78bfa','#f472b6'];
+    const socSeries=C.soc.map((cn,i)=>({cn,label:'VPP'+vppIds[i],data:D.map(r=>{const v=Number(r[cn]);return Number.isFinite(v)?v*100:50}),color:socColors[i%9],raw:D.map(r=>{const v=Number(r[cn]);return Number.isFinite(v)?v*100:50})}));
+    const lastSOC=socSeries.map(s=>s.data[N-1]||50);const socMinVal=Math.min(...lastSOC),socMaxVal=Math.max(...lastSOC),socAvgVal=lastSOC.reduce((a,b)=>a+b,0)/Math.max(1,lastSOC.length);
+    let socCyclesTotal=0;socSeries.forEach(s=>{let dir=0,last=null;for(const v of s.data){const threshold=.05,prev=last!=null?last:v;const d=v>=prev+threshold?1:v<=prev-threshold?-1:0;if(dir&&d&&dir!==d)socCyclesTotal++;if(d)dir=d;last=v}});
+    document.getElementById('socMin').textContent=socMinVal.toFixed(1)+'%';document.getElementById('socMax').textContent=socMaxVal.toFixed(1)+'%';document.getElementById('socAvg').textContent=socAvgVal.toFixed(1)+'%';document.getElementById('socCycles').textContent=Math.round(socCyclesTotal/Nv)+'次/VPP';
+    let socSelected=new Set(['VPP1']);let socDetailChart=null,socHeatState=null;
+    const socChipWrap=document.getElementById('socChips');document.getElementById('socVppCount').textContent=Nv;
+    socSeries.forEach((s,i)=>{const chip=document.createElement('span');chip.className='multi-select-chip'+(i===0?' checked':'');chip.innerHTML='<span class="chip-dot" style="color:'+s.color+'"></span>'+s.label;chip.addEventListener('click',()=>{if(socSelected.has(s.label)){if(socSelected.size>1){socSelected.delete(s.label);chip.classList.remove('checked')}}else{socSelected.add(s.label);chip.classList.add('checked')}updateSOCDetail()});socChipWrap.appendChild(chip)});
+    function socHeatColor(value){const ratio=Math.max(0,Math.min(1,value/100)),base=dark?[15,24,39]:[238,243,249],target=ratio<.25?[251,90,103]:ratio<.5?[251,146,60]:ratio<.75?[251,191,36]:[52,211,153];return'rgb('+base.map((v,i)=>Math.round(v+(target[i]-v)*(.12+ratio*.78))).join(',')+')'}
+    function drawSOCHeatmap(){const canvas=document.getElementById('socHeatmap');if(!canvas||!socSeries.length)return;const rect=canvas.getBoundingClientRect(),w=Math.max(300,rect.width),h=240,dpr=Math.max(1,window.devicePixelRatio||1);canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);const ctx=canvas.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);const left=52,right=10,top=6,bottom=24,rows=socSeries.length,cols=Math.max(24,Math.min(64,Math.floor((w-left-right)/9)));const plotW=w-left-right,plotH=h-top-bottom,cellW=plotW/cols,cellH=plotH/rows,values=[];ctx.font="9px 'JetBrains Mono',monospace";ctx.textBaseline='middle';for(let row=0;row<rows;row++){const s=socSeries[row],rowVals=[];ctx.fillStyle=socSelected.has(s.label)?(dark?'#dbeafe':'#1e3a8a'):t2;ctx.textAlign='right';ctx.fillText(s.label,left-7,top+(row+.5)*cellH);for(let col=0;col<cols;col++){const from=Math.floor(col*s.data.length/cols),to=Math.max(from+1,Math.floor((col+1)*s.data.length/cols));let sum=0;for(let i=from;i<to;i++)sum+=s.data[i]||50;const value=sum/(to-from);rowVals.push(value);ctx.fillStyle=socHeatColor(value);ctx.fillRect(left+col*cellW+.4,top+row*cellH+.4,Math.max(.5,cellW-.8),Math.max(.5,cellH-.8))}values.push(rowVals)}ctx.strokeStyle=dark?'rgba(148,163,184,.10)':'rgba(15,23,42,.10)';ctx.lineWidth=1;for(let r=0;r<=rows;r++){const y=top+r*cellH;ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(w-right,y);ctx.stroke()}ctx.fillStyle=t3;ctx.textAlign='center';ctx.textBaseline='top';ctx.font="9px 'JetBrains Mono',monospace";const tv=D.map(r=>Number(r[TIME])).filter(Number.isFinite);for(let i=0;i<5;i++){const p=i/4,idx=Math.min(tv.length-1,Math.round(p*(tv.length-1))),x=left+p*plotW;ctx.fillText((Number.isFinite(tv[idx])?tv[idx].toFixed(i===4?0:1):(p*24).toFixed(0))+'h',x,h-bottom+7)}socHeatState={left,right,top,bottom,rows,cols,cellW,cellH,values,w,h}}
+    function updateSOCDetail(){const selected=socSeries.filter(s=>socSelected.has(s.label));document.getElementById('socLineTitle').textContent=selected.map(s=>s.label).join(' + ')+' · SOC趋势';document.getElementById('socLineNote').textContent='范围 0–100% · 10%–90% 安全区间';document.getElementById('socSubtitle').textContent='选中 '+selected.length+'/'+Nv+' 站 · 点击热力图行切换';if(socDetailChart)socDetailChart.destroy();const canvas=document.getElementById('chartSOCDetail'),ctx=canvas.getContext('2d');const datasets=selected.map(s=>{const grad=ctx.createLinearGradient(0,0,0,240);grad.addColorStop(0,'rgba(52,211,153,.16)');grad.addColorStop(1,'rgba(52,211,153,0)');return{label:s.label,data:s.data,borderColor:s.color,borderWidth:2,pointRadius:0,pointHoverRadius:3,tension:.32,fill:true,backgroundColor:grad}});socDetailChart=new Chart(ctx,{type:'line',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:selected.length>1,position:'bottom',labels:{color:t2,usePointStyle:true,boxWidth:7,padding:10,font:{size:9}}},tooltip:{...tip,callbacks:{label:c=>c.dataset.label+': '+Number(c.raw).toFixed(1)+'%'}}},scales:{x:{ticks:{color:t3,maxTicksLimit:9},grid:{color:gridC}},y:{min:0,max:100,ticks:{color:t3,callback:v=>v+'%'},grid:{color:gridC}}}}},{id:'socBand',beforeDraw(chart){const y=chart.scales.y;if(!y)return;const{ctx,chartArea:{left,right}}=chart;ctx.save();ctx.fillStyle='rgba(52,211,153,.04)';ctx.fillRect(left,y.getPixelForValue(90),right-left,y.getPixelForValue(10)-y.getPixelForValue(90));[10,90].forEach(v=>{ctx.strokeStyle='rgba(251,90,103,.18)';ctx.setLineDash([4,4]);const py=y.getPixelForValue(v);ctx.beginPath();ctx.moveTo(left,py);ctx.lineTo(right,py);ctx.stroke()});ctx.restore()}});drawSOCHeatmap()}
+    const socCanvas=document.getElementById('socHeatmap'),socTooltip=document.getElementById('socHeatTooltip');
+    socCanvas.addEventListener('mousemove',e=>{if(!socHeatState)return;const rect=socCanvas.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top,s=socHeatState;if(x<s.left||x>s.w-s.right||y<s.top||y>s.h-s.bottom){socTooltip.style.display='none';return}const col=Math.min(s.cols-1,Math.floor((x-s.left)/s.cellW)),row=Math.min(s.rows-1,Math.floor((y-s.top)/s.cellH)),value=s.values[row][col],from=Math.floor(col*N/s.cols),time=Number(D[from]?.[TIME]);socTooltip.innerHTML='<strong>'+socSeries[row].label+'</strong><span>'+(Number.isFinite(time)?time.toFixed(1):'--')+' h · SOC '+value.toFixed(1)+'%</span>';socTooltip.style.left=x+'px';socTooltip.style.top=y+'px';socTooltip.style.display='block'});
+    socCanvas.addEventListener('mouseleave',()=>socTooltip.style.display='none');
+    socCanvas.addEventListener('click',e=>{if(!socHeatState)return;const rect=socCanvas.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top,s=socHeatState;if(x<s.left||x>s.w-s.right||y<s.top||y>s.h-s.bottom)return;const row=Math.min(s.rows-1,Math.floor((y-s.top)/s.cellH)),label=socSeries[row].label;if(socSelected.has(label)){if(socSelected.size>1)socSelected.delete(label)}else{socSelected.clear();socSelected.add(label)}socChipWrap.querySelectorAll('.multi-select-chip').forEach((c,i)=>{c.classList.toggle('checked',socSelected.has(socSeries[i]?.label))});updateSOCDetail()});
+    if(window.ResizeObserver)new ResizeObserver(()=>requestAnimationFrame(drawSOCHeatmap)).observe(socCanvas.parentElement);
+    updateSOCDetail();
+    drawSOCHeatmap();
+    }catch(e){console.error('SOC init error:',e)}
+
+    const vppK=Array.from({length:Nv},(_,v)=>{let p=0,w=0,g=0,l=0,s=0,c=0,ok=0;D.forEach(r=>{p+=r[C.pv[v]]||0;w+=r[C.wind[v]]||0;g+=r[C.gas[v]]||0;l+=r[C.load[v]]||0;s+=r[C.shed[v]]||0;c+=r[C.curt[v]]||0;const f=r[C.freq[v]];if(f!=null&&f>=49.5&&f<=50.5)ok++});const ra=p+w;return{rr:ra>0?(1-c/Math.max(ra,1))*100:0,fr:ok/N*100,rel:l>0?(1-s/l)*100:100,cost:g*.35*dt+s*5*dt+c*.1*dt}});
+    const vppBarColors=['rgba(79,140,255,.88)','rgba(52,211,153,.88)','rgba(251,191,36,.88)','rgba(251,146,60,.88)','rgba(139,143,255,.88)','rgba(34,211,238,.88)','rgba(251,90,103,.88)','rgba(167,139,250,.88)','rgba(244,114,182,.88)'];
+    const vppDatasets=Array.from({length:Nv},(_,v)=>({label:'VPP '+(v+1),data:[vppK[v].rr,vppK[v].fr,vppK[v].rel,vppK[v].cost/1000],backgroundColor:vppBarColors[v%9],borderRadius:5}));
+    new Chart(document.getElementById('chartVPP'),{type:'bar',data:{labels:['消纳率 %','频率合格 %','可靠性 %','成本 k¥'],datasets:vppDatasets},options:{responsive:true,maintainAspectRatio:false,plugins:{tooltip:tip,legend:{position:'bottom',labels:{color:t2,usePointStyle:true,pointStyle:'circle',boxWidth:7,padding:14,font:{size:10}}}},scales:{x:{ticks:{color:t3},grid:{display:false}},y:{beginAtZero:true,ticks:{color:t3},grid:{color:gridC}}}}});
+    }catch(e){console.error('Chart init error:',e)}
+
+    const alog=document.getElementById('alarmLog');document.getElementById('alarmCountLabel').textContent=alarms.length+' 条事件 · 按时间排序';
+    if(!alarms.length)alog.innerHTML='<div class="empty-alarm"><div><strong>系统运行正常</strong><span>当前没有需要处理的告警事件</span></div></div>';
+    else alog.innerHTML=alarms.slice().reverse().slice(0,60).map((a,i)=>'<div class="alarm-item" style="--ac:'+a.color+';animation-delay:'+(i*35)+'ms"><span class="alarm-level"></span><div><div class="alarm-name">'+a.type+'</div><div class="alarm-detail">VPP '+a.vpp+' · '+a.detail+'</div></div><div class="alarm-time">'+(parseFloat(a.t)*1).toFixed(1)+'h</div></div>').join('');
+
+    console.log('Dashboard init complete, hiding loader. Final Nv:',Nv);
+    ld.classList.add('hidden');
+  }catch(err){console.error('Dashboard error:',err);ld.classList.add('hidden');
+    document.getElementById('mainContent').innerHTML='<div class="panel" style="grid-column:1/-1;padding:48px;text-align:center"><h2>数据加载失败</h2><p style="color:var(--t2)">'+err.message+'</p></div>';}
+}init();
+</script>
+<script>
+/* V1.7 — Draggable topology */
+(()=>{"use strict";const svg=document.getElementById("energyTopology");if(!svg)return;const coreAnchors={pv:{x:380,y:92},wind:{x:380,y:95},tidal:{x:380,y:98},storage:{x:520,y:92},gas:{x:520,y:95},load:{x:520,y:98}};const nodes=Array.from(svg.querySelectorAll(".drag-energy-node"));const states=new Map();function clientToSvg(cx,cy){const pt=svg.createSVGPoint();pt.x=cx;pt.y=cy;const m=svg.getScreenCTM();if(!m)return{x:0,y:0};const p=pt.matrixTransform(m.inverse());return{x:p.x,y:p.y}}function applyRubber(dx,dy){const d=Math.hypot(dx,dy);if(d<=78)return{dx,dy};const extra=d-78,re=extra/(1+extra/62),lim=Math.min(78+re,190),r=lim/d;return{dx:dx*r,dy:dy*r}}function renderNode(s){s.element.setAttribute("transform","translate("+s.x.toFixed(3)+" "+s.y.toFixed(3)+")");const el=s.element,side=el.dataset.side,w=Number(el.dataset.width),cy2=s.y+17,a=coreAnchors[s.nodeName],p=document.getElementById("link-"+s.nodeName);if(!p||!a)return;let sx,sy,ex,ey;if(side==="left"){sx=s.x+w;sy=cy2;ex=a.x;ey=a.y}else{sx=a.x;sy=a.y;ex=s.x;ey=cy2}const hd=ex-sx;p.setAttribute("d","M "+sx.toFixed(2)+" "+sy.toFixed(2)+" C "+(sx+hd*.42).toFixed(2)+" "+sy.toFixed(2)+" "+(ex-hd*.32).toFixed(2)+" "+ey.toFixed(2)+" "+ex.toFixed(2)+" "+ey.toFixed(2))}function stopSpring(s){if(s.raf!==null){cancelAnimationFrame(s.raf);s.raf=null}s.vx=0;s.vy=0;s.element.classList.remove("is-returning")}function springBack(s){stopSpring(s);s.element.classList.add("is-returning");const stiff=.115,damp=.78;function anim(){const dx=s.homeX-s.x,dy=s.homeY-s.y;s.vx=(s.vx+dx*stiff)*damp;s.vy=(s.vy+dy*stiff)*damp;s.x+=s.vx;s.y+=s.vy;renderNode(s);if(Math.hypot(dx,dy)<.08&&Math.hypot(s.vx,s.vy)<.08){s.x=s.homeX;s.y=s.homeY;s.vx=0;s.vy=0;renderNode(s);s.element.classList.remove("is-returning");s.raf=null;return}s.raf=requestAnimationFrame(anim)}s.raf=requestAnimationFrame(anim)}nodes.forEach(el=>{const nm=el.dataset.node,hx=Number(el.dataset.homeX),hy=Number(el.dataset.homeY),s={element:el,nodeName:nm,homeX:hx,homeY:hy,x:hx,y:hy,pointerId:null,dragging:false,psx:0,psy:0,nsx:hx,nsy:hy,vx:0,vy:0,raf:null};states.set(nm,s);const link=document.getElementById("link-"+nm);el.addEventListener("pointerdown",e=>{if(e.pointerType==="mouse"&&e.button!==0)return;e.preventDefault();stopSpring(s);const pt=clientToSvg(e.clientX,e.clientY);s.dragging=true;s.pointerId=e.pointerId;s.psx=pt.x;s.psy=pt.y;s.nsx=s.x;s.nsy=s.y;el.classList.add("is-dragging");link&&link.classList.add("is-active");el.setPointerCapture(e.pointerId)});el.addEventListener("pointermove",e=>{if(!s.dragging||s.pointerId!==e.pointerId)return;e.preventDefault();const pt=clientToSvg(e.clientX,e.clientY),r=applyRubber(pt.x-s.psx,pt.y-s.psy);s.x=s.nsx+r.dx;s.y=s.nsy+r.dy;renderNode(s)});function finish(e){if(!s.dragging||s.pointerId!==e.pointerId)return;s.dragging=false;s.pointerId=null;el.classList.remove("is-dragging");link&&link.classList.remove("is-active");try{el.releasePointerCapture(e.pointerId)}catch(_){}springBack(s)}el.addEventListener("pointerup",finish);el.addEventListener("pointercancel",finish);el.addEventListener("lostpointercapture",e=>{if(s.dragging)finish(e)});el.addEventListener("keydown",e=>{if(e.key!=="Enter"&&e.key!==" ")return;e.preventDefault();stopSpring(s);const d=el.dataset.side==="left"?-1:1;s.x=s.homeX+d*20;s.y=s.homeY-5;renderNode(s);springBack(s)});renderNode(s)})})();
+</script>
+</body>
+</html>
