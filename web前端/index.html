@@ -8,7 +8,7 @@
 <meta http-equiv="Expires" content="0">
 <meta name="description" content="去中心化虚拟电厂协同自治调控仿真平台。孤岛自治与分布式协同双模式。">
 <title>超越乙号新能源虚拟电站 V1.6</title>
-<link rel="stylesheet" href="./particle-wall.css">
+<link rel="stylesheet" href="assets/css/particle-wall.css">
 <style>
 /* ================================================================
    DESIGN TOKENS — 未来能源系统 × 实验性数字艺术
@@ -458,7 +458,7 @@ html{scroll-snap-type:y proximity}
      LOADING SCREEN — Liquid Glass Energy Core
      ================================================================ -->
 <div id="vppLoader" class="particle-wall" role="status" aria-live="polite" aria-label="正在启动虚拟电厂自治能源核心">
-  <video class="loader-bg-video" src="./frontend-bg.mp4" autoplay muted loop playsinline preload="auto"></video>
+  <video class="loader-bg-video" src="assets/videos/frontend-bg.mp4" autoplay muted loop playsinline preload="auto"></video>
   <div class="particle-wall__light" aria-hidden="true"></div>
   <canvas class="particle-wall__canvas" aria-hidden="true"></canvas>
   <div class="particle-wall__content">
@@ -485,7 +485,7 @@ html{scroll-snap-type:y proximity}
      NAVIGATION
      ================================================================ -->
 <nav class="app-nav" id="appNav">
-  <a href="#" class="nav-brand"><img src="./assets/logo.png" alt="超越乙号" style="height:34px;width:auto;border-radius:6px;filter:drop-shadow(0 0 10px rgba(232,168,48,.35))">超越乙号</a>
+  <a href="#" class="nav-brand"><img src="assets/logo.png" alt="超越乙号" style="height:34px;width:auto;border-radius:6px;filter:drop-shadow(0 0 10px rgba(232,168,48,.35))">超越乙号</a>
   <div class="nav-links">
     <a href="#features">CAPABILITIES 01</a>
     <a href="#how">ARCHITECTURE 02</a>
@@ -508,21 +508,21 @@ html{scroll-snap-type:y proximity}
 <section class="hero" id="hero">
   <!-- Zone: Solar -->
   <div class="hero-zone solar" data-energy="solar" id="zoneSolar">
-    <video class="hero-img" src="./solar.mp4" autoplay muted loop playsinline preload="auto"></video>
+    <video class="hero-img" src="assets/videos/solar.mp4" autoplay muted loop playsinline preload="auto"></video>
     <div class="zone-light" style="background:radial-gradient(circle 180px at var(--lx,50%) var(--ly,50%),rgba(212,161,44,.18),rgba(245,158,66,.06) 40%,transparent 70%)"></div>
     <div class="zone-flash" style="background:radial-gradient(circle,rgba(255,224,163,.5),rgba(212,161,44,.2),transparent)"></div>
     <div class="zone-label"><div class="zl-main">SOLAR POWER</div><div class="zl-sub" style="color:rgba(255,224,163,.6)">光伏能源 · GENERATION INPUT</div></div>
   </div>
   <!-- Zone: Wind -->
   <div class="hero-zone wind" data-energy="wind" id="zoneWind">
-    <video class="hero-img" src="./wind.mp4" autoplay muted loop playsinline preload="auto"></video>
+    <video class="hero-img" src="assets/videos/wind.mp4" autoplay muted loop playsinline preload="auto"></video>
     <div class="zone-light" style="background:radial-gradient(circle 180px at var(--lx,50%) var(--ly,50%),rgba(212,168,64,.18),rgba(220,180,80,.06) 40%,transparent 70%)"></div>
     <div class="zone-flash" style="background:radial-gradient(circle,rgba(240,210,140,.5),rgba(212,168,64,.2),transparent)"></div>
     <div class="zone-label"><div class="zl-main">WIND ENERGY</div><div class="zl-sub" style="color:rgba(240,210,140,.6)">风力能源 · AIRFLOW INPUT</div></div>
   </div>
   <!-- Zone: Tidal -->
   <div class="hero-zone tidal" data-energy="tidal" id="zoneTidal">
-    <video class="hero-img" src="./tidal.mp4" autoplay muted loop playsinline preload="auto"></video>
+    <video class="hero-img" src="assets/videos/tidal.mp4" autoplay muted loop playsinline preload="auto"></video>
     <div class="zone-light" style="background:radial-gradient(circle 180px at var(--lx,50%) var(--ly,50%),rgba(180,130,50,.18),rgba(200,150,60,.06) 40%,transparent 70%)"></div>
     <div class="zone-flash" style="background:radial-gradient(circle,rgba(220,190,120,.5),rgba(180,130,50,.2),transparent)"></div>
     <div class="zone-label"><div class="zl-main">TIDAL GENERATION</div><div class="zl-sub" style="color:rgba(220,190,120,.6)">潮汐能源 · TIDAL CYCLE INPUT</div></div>
@@ -715,7 +715,7 @@ html{scroll-snap-type:y proximity}
   }
 })();
 </script>
-<script src="./particle-wall.js"></script>
+<script src="assets/js/particle-wall.js"></script>
 <script>document.addEventListener('DOMContentLoaded',function(){try{new ParticleWall(document.getElementById('vppLoader'))}catch(e){}});</script>
 <script>
 (function(){
