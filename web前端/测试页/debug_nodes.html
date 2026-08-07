@@ -1,0 +1,31 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Node Debug</title>
+<style>
+body{background:#060912;color:#f3f6fb;font-family:system-ui;padding:20px}
+.node-row{display:grid;grid-template-columns:auto 1fr auto;gap:12px;padding:13px;border:1px solid rgba(148,163,184,.09);margin:4px 0}
+.node-index{width:31px;height:31px;border-radius:10px;display:grid;place-items:center;background:rgba(79,140,255,.10);color:#79a6ff}
+</style></head><body>
+<h2>Node List Debug</h2>
+<div id="info"></div>
+<div id="nodes"></div>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script>
+(async function(){
+  var info=document.getElementById('info');
+  var nodes=document.getElementById('nodes');
+  try{
+    var r=await fetch('island_timeseries.csv');
+    var t=await r.text();
+    var ts=Papa.parse(t.charCodeAt(0)===0xFEFF?t.slice(1):t,{header:true,dynamicTyping:true,skipEmptyLines:true});
+    var F=ts.meta.fields||[];
+    var Nv=F.filter(function(f){return f&&/^VPP\d+_PV_kW/.test(String(f))}).length;
+    info.innerHTML='<p>CSV: '+ts.data.length+' rows, '+F.length+' cols, Nv='+Nv+'</p>';
+    if(Nv===0){info.innerHTML+='<p style="color:red">Nv=0! Fields: '+F.slice(0,10).join(', ')+'</p>';return}
+    for(var v=0;v<Nv;v++){
+      var row=document.createElement('div');row.className='node-row';
+      row.innerHTML='<span class="node-index">'+(v<9?'0':'')+(v+1)+'</span><span>VPP '+(v+1)+'</span><span style="color:#34d399">ONLINE</span>';
+      nodes.appendChild(row);
+    }
+    info.innerHTML+='<p style="color:green">Generated '+Nv+' nodes</p>';
+  }catch(e){info.innerHTML='<p style="color:red">ERROR: '+e.message+'</p>'}
+})();
+</script></body></html>
