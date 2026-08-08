@@ -59,6 +59,8 @@ function results = run_mode_cooperate()
     hist.volt       = zeros(N, Nv);
     hist.mode       = zeros(N, 1);
     hist.cost       = zeros(N, Nv);
+    hist.condition  = cell(N, 1);    % 支撑层：工况标签
+    hist.severity   = zeros(N, 1);   % 支撑层：严重等级 0-3
     % 协同特有记录 — 动态链路
     hist.admm_iter      = zeros(N, 1);
     hist.admm_residual  = zeros(N, 1);
@@ -106,6 +108,9 @@ function results = run_mode_cooperate()
     % 通信 — 协同模式通信正常 (无故障)
     fault_active = false(Nv);
 
+    % 支撑层：数据缓存初始化
+    support_cache = data_cache_module('init', [], [], cfg);
+
     % ============ Step 2: 时间步循环 ============
     fprintf('[Step 2] 开始时序仿真 (%d步, dt=%.2fh)...\n', N, dt);
     tic;
@@ -152,6 +157,28 @@ function results = run_mode_cooperate()
         comm_state = comm_delay_sim(cfg, t, fault_active);
         [mode, mode_detail] = mode_judge_comm(comm_state, cfg, false);
 
+        % ---- 2.4b 支撑层：时钟同步 ----
+        if cfg.Support.clock_sync_enabled
+            vpp_times = t_now * ones(1, Nv);
+            [sync_status, ~, sync_detail] = clock_sync_module(vpp_times, cfg);
+            if ~strcmp(sync_status, 'ok')
+                fprintf('  [时钟同步] t=%.2f 状态=%s 最大漂移=%.3fs\n', ...
+                        t_now, sync_status, sync_detail.max_drift_s);
+            end
+        end
+
+        % ---- 2.4c 支撑层：工况感知（协同模式） ----
+        if cfg.Support.condition_aware_enabled
+            [condition, severity, aware_detail] = condition_aware_module(...
+                comm_state, mode, state.freq, state.volt, cfg);
+            hist.condition{t} = condition;
+            hist.severity(t)  = severity;
+            if severity >= 2
+                fprintf('  [工况感知] t=%.2f %s (严重度=%d) 触发:%s\n', ...
+                        t_now, condition, severity, aware_detail.triggered_by);
+            end
+        end
+
         % ---- 2.5 安全约束 ----
         constraints = island_constraint_calc(state, cfg);
 
@@ -194,6 +221,25 @@ function results = run_mode_cooperate()
         [~, ~, ~] = interrupt_load(dispatch.P_shed, cfg.Load.interruptible);
         state.freq = freq_new;
         state.volt = volt_new;
+
+        % ---- 2.9b 支撑层：数据缓存（协同模式） ----
+        if cfg.Support.data_cache_enabled
+            if mode == 2  % ISLAND — 通信中断，缓存待发送数据
+                cache_payload = struct('t_now', t_now, 'dispatch', dispatch, ...
+                                       'freq', state.freq, 'volt', state.volt);
+                support_cache = data_cache_module('store', support_cache, ...
+                    struct('t_now', t_now, 'payload', cache_payload), cfg);
+            else  % 通信正常（COOPERATE），尝试断点续传
+                [support_cache, recovered] = data_cache_module('retrieve', ...
+                    support_cache, [], cfg);
+                if ~isempty(recovered)
+                    fprintf('  [数据缓存] t=%.2f 断点续传 %d 条数据\n', ...
+                            t_now, length(recovered));
+                end
+            end
+            support_cache = data_cache_module('flush', support_cache, ...
+                struct('t_now', t_now, 'payload', []), cfg);
+        end
 
         % ---- 2.10 记录历史 ----
         hist.P_pv(t, :)    = state.P_pv_avail;

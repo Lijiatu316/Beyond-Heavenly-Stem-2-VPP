@@ -121,9 +121,15 @@ function [x_opt, fval, exitflag] = solve_single_vpp(v, state, constraints, cfg)
 
         cost = cfg.Gas.fuel_cost_a(v) * P_gas * cfg.dt ...
              + cfg.Gas.fuel_cost_b(v) * (P_gas > 0) * cfg.dt ...
+             + cfg.Gas.fuel_cost_c(v) * P_gas^2 * cfg.dt ...
              + cfg.Price.load_shedding * P_shed * cfg.dt ...
              + cfg.Price.curtail_pv * P_curtail_pv_wind * cfg.dt ...
              + cfg.Price.curtail_tidal * P_curtail_tidal * cfg.dt;
+        % 网损惩罚（孤岛模式无VPP间交换，P_loss=0）
+        if isfield(cfg, 'Network') && cfg.Network.loss_enabled
+            P_loss = 0;  % 孤岛模式无跨VPP功率流
+            cost = cost + cfg.Price.grid_import(v) * P_loss * cfg.dt;
+        end
     end
 
     % ---- 约束函数 ----
@@ -143,7 +149,15 @@ function [x_opt, fval, exitflag] = solve_single_vpp(v, state, constraints, cfg)
                       + P_tidal + P_gas + P_bat;
         P_demand    = state.P_load(v) - P_shed - P_curt_pv - P_curt_wind;
         ceq = P_available - P_demand;
-        c = [];
+
+        % 爬坡约束（仅在启用时将不等式约束加入c向量）
+        if isfield(cfg.Gas, 'ramp_enabled_in_opt') && cfg.Gas.ramp_enabled_in_opt
+            max_ramp = cfg.Gas.ramp_rate(v) * cfg.dt;
+            c = [P_gas - state.P_gas_prev(v) - max_ramp;      % 上爬坡
+                 state.P_gas_prev(v) - P_gas - max_ramp];     % 下爬坡
+        else
+            c = [];
+        end
     end
 
     % ---- fmincon求解 ----
@@ -206,6 +220,8 @@ function [dispatch, fval] = fallback_dispatch(v, state, constraints, cfg, dispat
 
     % 计算成本
     fval = cfg.Gas.fuel_cost_a(v) * dispatch.P_gas(v) * cfg.dt ...
+         + cfg.Gas.fuel_cost_b(v) * (dispatch.P_gas(v) > 0) * cfg.dt ...
+         + cfg.Gas.fuel_cost_c(v) * dispatch.P_gas(v)^2 * cfg.dt ...
          + cfg.Price.load_shedding * dispatch.P_shed(v) * cfg.dt ...
          + cfg.Price.curtail_pv * (dispatch.P_curtail_pv(v) + dispatch.P_curtail_wind(v)) * cfg.dt;
 end

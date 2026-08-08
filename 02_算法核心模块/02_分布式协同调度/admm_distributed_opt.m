@@ -122,6 +122,24 @@ function [dispatch, admm_info] = admm_distributed_opt(state, constraints, cfg, c
         end
         x_global = x_global_new;
 
+        % ---- 联络线传输容量硬约束 ----
+        if isfield(cfg.Comm, 'P_line_max')
+            exchange = compute_exchange(x_local, adjacency);
+            for i_ln = 1:Nv
+                for j_ln = (i_ln+1):Nv
+                    if adjacency(i_ln, j_ln) > 0 && cfg.Comm.P_line_max(i_ln, j_ln) > 0 ...
+                       && cfg.Comm.P_line_max(i_ln, j_ln) < Inf
+                        if abs(exchange(i_ln, j_ln)) > cfg.Comm.P_line_max(i_ln, j_ln)
+                            scale = cfg.Comm.P_line_max(i_ln, j_ln) / abs(exchange(i_ln, j_ln));
+                            % 等比例削减关联VPP的交换功率
+                            x_global(i_ln, :) = x_global(i_ln, :) * (0.5 + 0.5*scale);
+                            x_global(j_ln, :) = x_global(j_ln, :) * (0.5 + 0.5*scale);
+                        end
+                    end
+                end
+            end
+        end
+
         % ============ Step 3: 对偶变量更新 ============
         for v = 1:Nv
             u_dual(v, :) = u_dual(v, :) + x_local(v, :) - x_global(v, :);
@@ -156,6 +174,8 @@ function [dispatch, admm_info] = admm_distributed_opt(state, constraints, cfg, c
         P_curt = dispatch.P_curtail_pv(v) + dispatch.P_curtail_wind(v) + dispatch.P_curtail_tidal(v);
 
         dispatch.total_cost(v) = cfg.Gas.fuel_cost_a(v) * P_gas * cfg.dt ...
+                               + cfg.Gas.fuel_cost_b(v) * (P_gas > 0) * cfg.dt ...
+                               + cfg.Gas.fuel_cost_c(v) * P_gas^2 * cfg.dt ...
                                + cfg.Price.load_shedding * P_shed * cfg.dt ...
                                + cfg.Price.curtail_pv * P_curt * cfg.dt;
     end
@@ -214,8 +234,19 @@ function x_opt = solve_local_admm(v, state, constraints, cfg, consensus, u, rho)
         % 本地运行成本
         local_cost = cfg.Gas.fuel_cost_a(v) * P_gas * cfg.dt ...
                    + cfg.Gas.fuel_cost_b(v) * (P_gas > 0) * cfg.dt ...
+                   + cfg.Gas.fuel_cost_c(v) * P_gas^2 * cfg.dt ...
                    + cfg.Price.load_shedding * P_shed * cfg.dt ...
                    + cfg.Price.curtail_pv * P_curt * cfg.dt;
+        % 网损惩罚（基于本VPP与其他VPP的交换功率估算）
+        if isfield(cfg, 'Network') && cfg.Network.loss_enabled
+            P_bat   = x(2);
+            P_curt_tide = x(6);
+            P_exchange = abs(P_gas + P_bat + P_shed - state.P_load(v) ...
+                       + state.P_pv_avail(v) + state.P_wind_avail(v) ...
+                       + max(state.P_tidal_avail(v) - P_curt_tide, 0));
+            P_loss = cfg.Network.loss_coeff * P_exchange;
+            local_cost = local_cost + cfg.Price.grid_import(v) * P_loss * cfg.dt;
+        end
 
         % ADMM增广项: (ρ/2)·||x - consensus + u||²
         diff = x(:) - consensus(:) + u(:);

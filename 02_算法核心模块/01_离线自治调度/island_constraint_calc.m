@@ -44,10 +44,17 @@ function constraints = island_constraint_calc(state, cfg)
     P_gas_min_raw = cfg.Gas.P_min;
     P_gas_max_raw = cfg.Gas.P_max;
 
-    % 孤岛模式：去掉爬坡约束（紧急状态，燃气需快速响应）
-    % 爬坡限制在并网模式下有用，但在孤岛自治中会锁死燃气出力
-    P_gas_min = P_gas_min_raw;
-    P_gas_max = P_gas_max_raw;
+    % 爬坡约束：通过 cfg.Gas.ramp_enabled_in_opt 控制
+    % 默认关闭（孤岛紧急状态燃气需快速响应），协同模式建议开启
+    if isfield(cfg.Gas, 'ramp_enabled_in_opt') && cfg.Gas.ramp_enabled_in_opt
+        max_ramp = cfg.Gas.ramp_rate * cfg.dt;
+        P_gas_min = max(P_gas_min_raw, state.P_gas_prev - max_ramp);
+        P_gas_max = min(P_gas_max_raw, state.P_gas_prev + max_ramp);
+    else
+        % 孤岛模式默认：不设爬坡约束（紧急响应优先）
+        P_gas_min = P_gas_min_raw;
+        P_gas_max = P_gas_max_raw;
+    end
 
     % ---- 储能功率约束（含SOC保护） ----
     P_bat_ch_max  = cfg.Battery.P_ch_max;

@@ -75,6 +75,8 @@ function cfg = param_global_config()
     cfg.Gas.ramp_rate     = [300, 280, 250, 400, 380, 350, 320, 300, 280];  % 爬坡率 (kW/h)
     cfg.Gas.fuel_cost_a   = [0.35, 0.35, 0.35, 0.38, 0.38, 0.38, 0.33, 0.33, 0.33];  % 燃料成本斜率
     cfg.Gas.fuel_cost_b   = repmat(0.05, 1, 9);  % 燃料成本截距 (元/h)
+    cfg.Gas.fuel_cost_c   = zeros(1, 9);          % 二次成本系数 (元/kW²h), 0=线性模型向后兼容
+    cfg.Gas.ramp_enabled_in_opt = false;          % 孤岛模式是否在优化中启用爬坡约束 (默认关闭)
 
     % ==================== 储能参数 ====================
     cfg.Battery.E_cap     = [400, 350, 380, 500, 450, 480, 420, 400, 430];  % 额定容量 (kWh)
@@ -113,6 +115,9 @@ function cfg = param_global_config()
     cfg.Comm.loss_threshold  = 0.3;              % 丢包率阈值
     cfg.Comm.base_delay  = 0.01;                 % 基线时延 (s)
     cfg.Comm.base_loss   = 0.01;                 % 基线丢包率
+    % 联络线传输容量 (kW), 非邻域=Inf(无限制), 自连接=0
+    cfg.Comm.P_line_max  = 500 * ones(9);        % 默认500kW联络线容量
+    cfg.Comm.P_line_max(1:10:end) = 0;           % 对角线=0 (自连接)
 
     % ==================== 电价参数 ====================
     cfg.Price.grid_import  = repmat(0.5, 1, 9);   % 从主网购电 (元/kWh)
@@ -127,6 +132,18 @@ function cfg = param_global_config()
     cfg.Safety.freq_max   = 50.5;    % 过频保护阈值 (Hz)
     cfg.Safety.volt_min   = 0.90;    % 低压保护 (p.u.)
     cfg.Safety.volt_max   = 1.10;    % 过压保护 (p.u.)
+
+    % ==================== 网络损耗参数 ====================
+    cfg.Network.loss_coeff   = 0.02;              % 网损系数 (2% of inter-VPP exchange)
+    cfg.Network.loss_enabled = true;              % 启用网损建模
+
+    % ==================== 支撑层模块配置 ====================
+    cfg.Support.clock_sync_enabled      = true;   % 时钟同步模块
+    cfg.Support.condition_aware_enabled = true;   % 工况感知模块
+    cfg.Support.data_cache_enabled      = true;   % 数据缓存与断点续传
+    cfg.Support.clock_sync.max_drift_s  = 0.5;    % 最大允许时钟漂移 (s)
+    cfg.Support.data_cache.max_age_h    = 1.0;    % 缓存数据最大保留时间 (h)
+    cfg.Support.data_cache.max_size     = 1000;   % 缓存buffer最大条数
 
     % ==================== 仿真场景设置 ====================
     cfg.scenario.force_island   = true;     % true=全程孤岛, false=按通信质量自动切换
