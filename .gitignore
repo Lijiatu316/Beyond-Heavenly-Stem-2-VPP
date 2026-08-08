@@ -1,0 +1,40 @@
+# MATLAB
+*.mex*
+*.m~*
+*.asv
+*.slxc
+*.slx~
+*.fig~
+slprj/
+html/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Data caches (large files in patches)
+patches/02_real_data_fetcher/real_data_cache/*.csv
+patches/02_real_data_fetcher/real_data_cache/*.json
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
+Desktop.ini
+
+# Simulation outputs (large generated files)
+仿真结果/*.csv
+仿真结果/*.mat
+
+# Generated images (keep source .py files)
+*.png
+*.gif
+*.pdf
+*.svg
+!origin_figures/*.py
